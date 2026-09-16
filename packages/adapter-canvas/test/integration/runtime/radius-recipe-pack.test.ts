@@ -4,6 +4,7 @@ import { describe, expect, it } from "vitest";
 const repositoryRoot = new URL("../../../../../", import.meta.url);
 const {
   extractRecipeDefinition,
+  extractRecipeOutputPaths,
   parseAzureRecipePackPin,
   validateAzureRecipePack
 } = await import(
@@ -255,6 +256,35 @@ describe("extractRecipeDefinition", () => {
         /requires an exact predefined resource type/u
       );
     }
+  });
+});
+
+describe("extractRecipeOutputPaths", () => {
+  it("lists exact scalar and nested managed Recipe outputs", () => {
+    expect(extractRecipeOutputPaths(postgreSqlRecipe)).toEqual(["host"]);
+    expect(
+      extractRecipeOutputPaths(
+        extractRecipeDefinition(recipePack, "Radius.Data/redisCaches")
+      )
+    ).toEqual(["host", "port", "secrets", "secrets.accessKey", "secrets.url"]);
+  });
+
+  it("distinguishes a Recipe without explicit output mappings", () => {
+    expect(
+      extractRecipeOutputPaths(
+        extractRecipeDefinition(recipePack, "Radius.Messaging/rabbitMQ")
+      )
+    ).toBeUndefined();
+  });
+
+  it("rejects malformed output contracts", () => {
+    expect(() => extractRecipeOutputPaths(null)).toThrow(/must be text/u);
+    expect(() =>
+      extractRecipeOutputPaths("outputs: {\n  host: 'fqdn'")
+    ).toThrow(/incomplete outputs block/u);
+    expect(() =>
+      extractRecipeOutputPaths("outputs: {\n}\noutputs: {\n}")
+    ).toThrow(/multiple outputs blocks/u);
   });
 });
 

@@ -27,7 +27,7 @@ const REQUIRED_FILES = [
   path.join("references", "source-code-references.md")
 ];
 const INSTRUCTION =
-  "Continue with the loaded skill. If it is unavailable, read SKILL.md from skillBase. Substitute skillBase for <loaded-skill-base>. Substitute nodeCommand for <loaded-node>. Substitute skillVersion for <loaded-skill-version> only when skillVersion is present; otherwise leave <loaded-skill-version> unchanged so the skill omits the flag.";
+  "Invoke radius-app-bicep with the skill tool unless it has already been invoked in this session, then follow its loaded instructions. Read SKILL.md from skillBase only if the skill tool or named skill is unavailable. Substitute skillBase for <loaded-skill-base>. Substitute nodeCommand for <loaded-node>. Substitute skillVersion for <loaded-skill-version> only when skillVersion is present; otherwise leave <loaded-skill-version> unchanged so the skill omits the flag.";
 const NODE = path.join(path.parse(process.cwd()).root, "usr", "bin", "node");
 
 const CANDIDATES = {

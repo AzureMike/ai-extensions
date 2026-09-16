@@ -604,111 +604,97 @@ describe("P0-C built Radius extension artifact", () => {
       "Set `disableDefaultEnvVars: true` on a connection only when all generated variables from that connection must be suppressed"
     );
     expect(skillGuidance).toContain(
-      "`postgresSecret` becomes `POSTGRESSECRET`"
+      "[connection-conventions.md](references/connection-conventions.md)"
+    );
+    expect(skillGuidance).toContain(
+      "[runtime-contract.md](references/runtime-contract.md)"
+    );
+    expect(skillGuidance).toContain(
+      "do not preserve the manifest's backing-service image by falling back to a generic container"
+    );
+    expect(skillGuidance).toContain(
+      "Freeze that profile's exact workload and backing-service role set before type selection"
+    );
+    expect(skillGuidance).toContain(
+      "compare the search result to the table one-for-one"
+    );
+    expect(skillGuidance).toContain(
+      "do not point the container at frontend source or a configuration file"
     );
     // This artifact-boundary test verifies the packaged semantic guidance only.
     // The repo has no deterministic seam that executes the prompt-driven skill
     // or evaluates its generated Bicep; https://github.com/radius-project/ai-extensions/issues/685 tracks that evaluation harness.
-    for (const guidance of [
-      skillGuidance,
-      connectionGuidance,
-      runtimeGuidance
-    ]) {
+    for (const guidance of [connectionGuidance, runtimeGuidance]) {
       expect(guidance).toContain(
         "Do not execute `rad`, fetch versions or Recipe metadata, or visit external links to discover compatibility"
       );
       expect(guidance).not.toContain("rad version --output json");
       expect(guidance).not.toContain("rad recipe show");
     }
-    expect(skillGuidance).toContain(
-      'the required managed `show-radius-type.mjs` result for `Radius.Compute/containers` has `recipe.status: "available"` and its returned `recipe.definition` identifies the Kubernetes Container Recipe'
-    );
     expect(connectionGuidance).toContain(
       "Support is established when `recipe.status` is `available` and the returned `recipe.definition` identifies the Kubernetes Container Recipe"
     );
     expect(runtimeGuidance).toContain(
       "For the managed-default profile, Recipe inspection means reading the complete `recipe.definition` already returned by the required `show-radius-type.mjs` batch"
     );
-    expect(skillGuidance).toContain(
-      "The skill handoff itself and a resolved resource schema alone do not establish runtime projection support"
-    );
     expect(connectionGuidance).toContain(
       "The skill handoff itself and a resolved resource schema alone are insufficient"
     );
-    expect(skillGuidance).toContain(
-      "If the Recipe is absent, unavailable, unresolved, or not the Kubernetes Container Recipe, preserve schema-supported `env`, `secretKeyRef`, `envFrom`, native variables, or equivalent explicit wiring"
-    );
-    expect(skillGuidance).toContain(
-      "`<CONNECTION>` is the uppercased connection map key without separator insertion"
-    );
     expect(connectionGuidance).toContain(
       "`<CONNECTION>` is the uppercased connection map key without separator insertion"
-    );
-    expect(skillGuidance).toContain(
-      "`<SECRETKEY>` is the uppercased authored Secret data key or Recipe `result.secrets` key"
     );
     expect(connectionGuidance).toContain(
       "a secret suffix is the uppercased authored data key or Recipe `result.secrets` key"
     );
-    expect(skillGuidance).toContain(
-      "The Kubernetes Container Recipe applies generated ordinary and secret-backed `CONNECTION_*` variables to both regular containers and init containers under the same precedence, disabling, and collision rules"
-    );
     expect(connectionGuidance).toContain(
       "Generated ordinary and secret-backed `CONNECTION_*` variables apply to both regular containers and init containers under the same precedence, disabling, and collision rules"
-    );
-    expect(skillGuidance).toContain(
-      "Do not migrate a working `app.bicep` without explicit user intent"
     );
     expect(connectionGuidance).toContain(
       "Do not automatically rewrite an existing working `app.bicep`"
     );
-    expect(skillGuidance).toContain(
-      "An authored `Radius.Security/secrets` connection uses `<secret>.id` and projects its declared data keys"
-    );
     expect(connectionGuidance).toContain(
       "A connection to an authored `Radius.Security/secrets` resource uses `<secret>.id` and projects its declared data keys"
-    );
-    expect(skillGuidance).toContain(
-      "A producer connection uses `<producer>.id` and may project ordinary properties plus keys declared by the Recipe in `result.secrets`"
     );
     expect(connectionGuidance).toContain(
       "A connection to a producer uses `<producer>.id` and may project ordinary resource properties plus secret-backed keys declared by the Recipe in `result.secrets`"
     );
-    for (const guidance of [skillGuidance, connectionGuidance]) {
-      expect(guidance).toContain(
-        "Automatic secret-backed `CONNECTION_*` projection is Kubernetes Container Recipe behavior only"
-      );
-      expect(guidance).toContain("<secret>.id");
-      expect(guidance).toContain("<producer>.id");
-      expect(guidance).toContain("`result.secrets`");
-      expect(guidance).toContain("`<producer>.properties.secrets.name`");
-      expect(guidance).toContain("`properties.secrets.id` does not exist");
-      expect(guidance).toContain(
-        "An explicit `env` entry wins over a generated variable"
-      );
-      expect(guidance).toContain(
-        "`disableDefaultEnvVars: true` suppresses all generated variables for that connection"
-      );
-      expect(guidance).toContain(
-        "When an ordinary projected property and a managed secret-derived value normalize to the same generated name, the managed secret value wins"
-      );
-      expect(guidance).toContain(
-        "When two secret-derived values normalize to the same generated name, fail rather than choose silently"
-      );
-      expect(guidance).not.toMatch(
-        /Normalized generated-name collisions fail|Generated names that collide after normalization fail/u
-      );
-      expect(guidance).toContain("Developer-owned credentials");
-      expect(guidance).toMatch(
-        /generated by a Recipe[\s\S]*`result\.secrets`/u
-      );
-      expect(guidance).toContain(
-        "Azure Container Instances (ACI) behavior is unchanged and must not use this Kubernetes projection"
-      );
-      expect(guidance).not.toMatch(
-        /github\.com\/radius-project\/(?:radius|resource-types-contrib)\/(?:pull|issues)\//u
-      );
-    }
+    expect(connectionGuidance).toContain(
+      "Automatic secret-backed `CONNECTION_*` projection is Kubernetes Container Recipe behavior only"
+    );
+    expect(connectionGuidance).toContain("<secret>.id");
+    expect(connectionGuidance).toContain("<producer>.id");
+    expect(connectionGuidance).toContain("`result.secrets`");
+    expect(connectionGuidance).toContain(
+      "`<producer>.properties.secrets.name`"
+    );
+    expect(connectionGuidance).toContain(
+      "`properties.secrets.id` does not exist"
+    );
+    expect(connectionGuidance).toContain(
+      "An explicit `env` entry wins over a generated variable"
+    );
+    expect(connectionGuidance).toContain(
+      "`disableDefaultEnvVars: true` suppresses all generated variables for that connection"
+    );
+    expect(connectionGuidance).toContain(
+      "When an ordinary projected property and a managed secret-derived value normalize to the same generated name, the managed secret value wins"
+    );
+    expect(connectionGuidance).toContain(
+      "When two secret-derived values normalize to the same generated name, fail rather than choose silently"
+    );
+    expect(connectionGuidance).not.toMatch(
+      /Normalized generated-name collisions fail|Generated names that collide after normalization fail/u
+    );
+    expect(connectionGuidance).toContain("Developer-owned credentials");
+    expect(connectionGuidance).toMatch(
+      /generated by a Recipe[\s\S]*`result\.secrets`/u
+    );
+    expect(connectionGuidance).toContain(
+      "Azure Container Instances (ACI) behavior is unchanged and must not use this Kubernetes projection"
+    );
+    expect(connectionGuidance).not.toMatch(
+      /github\.com\/radius-project\/(?:radius|resource-types-contrib)\/(?:pull|issues)\//u
+    );
     expect(secretsGuidance).toContain("`CONNECTION_MYSQLSECRET_PASSWORD`");
     for (const guidance of [
       connectionGuidance,
@@ -789,6 +775,10 @@ describe("P0-C built Radius extension artifact", () => {
   it("packages the Bicep checker exit-code contract", () => {
     assertCurrentArtifact();
     const skillGuidance = readFileSync(join(DIST_SKILL, "SKILL.md"), "utf8");
+    const lifecycleGuidance = readFileSync(
+      join(DIST_SKILL, "references", "model-run-lifecycle.md"),
+      "utf8"
+    );
     const exitTwoRow = skillGuidance
       .split(/\r?\n/u)
       .find((line) => line.startsWith("| `2`"));
@@ -808,10 +798,10 @@ describe("P0-C built Radius extension artifact", () => {
     expect(skillGuidance).toContain(
       "These codes apply only to `validate-bicep.mjs`."
     );
-    expect(skillGuidance).toContain(
+    expect(lifecycleGuidance).toContain(
       "counting reserved validation attempts in that run's `run.json`"
     );
-    expect(skillGuidance).toContain(
+    expect(lifecycleGuidance).toContain(
       "An unavailable check still consumes its reserved attempt."
     );
     expect(skillGuidance).toContain(
@@ -820,6 +810,73 @@ describe("P0-C built Radius extension artifact", () => {
     expect(skillGuidance).not.toContain(
       '"<loaded-node>" "<loaded-skill-base>/scripts/validate-bicep.mjs" .radius/app.bicep'
     );
+  });
+
+  it("packages selected-profile replica and resource-budget fidelity", () => {
+    assertCurrentArtifact();
+    const readGuidance = (relativePath: string): string =>
+      readFileSync(join(DIST_SKILL, relativePath), "utf8");
+    const skillGuidance = readGuidance("SKILL.md");
+    const runtimeGuidance = readGuidance("references/runtime-contract.md");
+
+    for (const guidance of [skillGuidance, runtimeGuidance]) {
+      expect(guidance).toContain(
+        "replica counts and CPU/memory requests and limits"
+      );
+      expect(guidance).toMatch(/selected profile.*required behavior/isu);
+    }
+  });
+
+  it("packages one consistent predefined persistent-volume type", () => {
+    assertCurrentArtifact();
+    const catalog = readFileSync(
+      join(DIST_SKILL, "references", "component-catalog.md"),
+      "utf8"
+    );
+    const resolution = readFileSync(
+      join(DIST_SKILL, "references", "type-resolution.md"),
+      "utf8"
+    );
+
+    for (const guidance of [catalog, resolution]) {
+      expect(guidance).toMatch(
+        /Persistent (?:storage|volume).*`Radius\.Compute\/persistentVolumes`/iu
+      );
+      expect(guidance).not.toContain("Radius.Storage/volumes");
+    }
+  });
+
+  it("packages explicit ingress and independent client-option fidelity", () => {
+    assertCurrentArtifact();
+    const readGuidance = (relativePath: string): string =>
+      readFileSync(join(DIST_SKILL, relativePath), "utf8");
+    const skillGuidance = readGuidance("SKILL.md");
+    const runtimeGuidance = readGuidance("references/runtime-contract.md");
+
+    expect(skillGuidance).toContain("documented operator host-port mapping");
+    expect(skillGuidance).toMatch(
+      /published web port paired with documented external-client use is proof/iu
+    );
+    expect(skillGuidance).toMatch(
+      /anchor the profile to exactly one manifest\/service set or one documented run command\/example/iu
+    );
+    expect(skillGuidance).toMatch(
+      /do not inspect or compare alternate-profile manifests or documentation unless step 7 reopens selection/iu
+    );
+    expect(skillGuidance).toMatch(
+      /discard its entire behavior table.*repeat steps 2-7 once/isu
+    );
+    expect(runtimeGuidance).toMatch(
+      /roles, command, settings, volumes, probes, scale, and budgets as one indivisible profile/iu
+    );
+    for (const guidance of [skillGuidance, runtimeGuidance]) {
+      expect(guidance).toMatch(
+        /client.initializer.*endpoint argument.*complete.*options/isu
+      );
+      expect(guidance).toMatch(
+        /TLS\/SSL, certificate-validation, and authentication/iu
+      );
+    }
   });
 
   it("packages the schema-sensitivity credential contract, not a property-name rule", () => {
@@ -832,11 +889,7 @@ describe("P0-C built Radius extension artifact", () => {
     );
     const skillGuidance = readGuidance("SKILL.md");
 
-    for (const guidance of [
-      secretsGuidance,
-      structureGuidance,
-      skillGuidance
-    ]) {
+    for (const guidance of [secretsGuidance, structureGuidance]) {
       expect(guidance).toContain("`x-radius-sensitive: true`");
       expect(guidance).toContain("`Radius.Data/mySqlDatabases.password`");
       expect(guidance).toContain("`Radius.Messaging/rabbitMQ.password`");
@@ -851,10 +904,7 @@ describe("P0-C built Radius extension artifact", () => {
       "classified by sensitivity rather than by property name"
     );
     expect(skillGuidance).toContain(
-      "classified by sensitivity and never by property name"
-    );
-    expect(skillGuidance).toContain(
-      "classified from the schema rather than from the property's name"
+      "Classify credentials from `secret` markers in the complete property schema, never property names"
     );
     expect(secretsGuidance).toContain(
       "A property named `password` may be either kind, and a reference property may be named `password`, `passwordSecret`, or `secretName`"
@@ -864,9 +914,6 @@ describe("P0-C built Radius extension artifact", () => {
     );
     expect(structureGuidance).toContain(
       "never a `@secure() param` (`Radius.Messaging/rabbitMQ.password`"
-    );
-    expect(skillGuidance).toContain(
-      "no `@secure() param` is assigned to a reference property"
     );
 
     const bicepBlocks = filesUnder(DIST_SKILL)
@@ -1041,6 +1088,7 @@ describe("P0-C built Radius extension artifact", () => {
       expect(script).toContain("contractVersion");
     }
     expect(checkerScript).toContain("secure-parameter-target");
+    expect(checkerScript).toContain("unmodeled-runtime-peer");
     expect(skillGuidance).toContain("resolved-types.json");
 
     // The checker verifies where a credential is assigned, not the authored

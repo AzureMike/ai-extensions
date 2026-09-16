@@ -19,3 +19,14 @@
 - Map keys inside `containers`, `ports`, and `volumes` are camelCase; `connections` keys are lowercase (engine + role)
 - Never use spaces, underscores, or special characters in any name
 - Explicit deployment-contract names and parameters take precedence over defaults. Preserve a documented resource-name parameter when a target Environment Recipe or verification couples it to a provider resource with naming or uniqueness constraints.
+
+## Deterministic output
+
+Two runs over the same source, generator version, schema, and Recipe contract must produce byte-identical `app.bicep`.
+
+- Order declarations as extensions, parameters, the application, backing services, Secrets, container images, containers, then routes.
+- Order parameters and same-type resources by their authored `name` using ASCII ordering, except where a declaration must follow a referenced resource.
+- Put `name` before `properties`. Order keys chosen by the generator inside `env`, `ports`, `containers`, `connections`, and similar maps with ASCII ordering.
+- Do not emit timestamps, random values, temporary paths, local absolute paths, or generator-machine environment values. Pin revision-derived values to the modeled commit or explicit immutable tag.
+- Use two-space indentation, single-quoted strings, one trailing newline, no trailing whitespace, and no repeated blank lines.
+- Preserve explicit profile-required resource, relationship, parameter, and app-native configuration names even when they differ from these defaults.

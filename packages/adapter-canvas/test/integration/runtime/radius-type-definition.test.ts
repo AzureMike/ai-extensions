@@ -45,6 +45,10 @@ const identity = {
   commit,
   extension: "br:biceptypes.azurecr.io/radius:0.60"
 };
+const modelResourceEnvelope =
+  "Author name and properties; location and tags are optional. id, apiVersion, type, systemData, and top-level provisioningState are read-only.";
+const modelSchemaFormat =
+  "Entries are properties-relative path:type. ! required; ro read-only; wo write-only; secret sensitive; [] array item; * map value; {name} discriminated variant; |N oneOf branch. Objects are closed unless followed by *. When present, recipe.outputPaths lists proven read-only paths; recipe.managedOutputPaths are Radius-generated metadata, not Recipe module outputs. An absent outputPaths list for an opaque module means unknown, not no outputs. Do not read an unlisted ro property without separate proof.";
 const managedVersion = { version: identity.version, commit: identity.commit };
 const generatedRoot = "https://raw.githubusercontent.com/radius-project/radius";
 const fixtureIndex = JSON.parse(
@@ -1598,9 +1602,234 @@ describe("command boundary", () => {
       }
     );
     expect(status).toBe(0);
-    expect(stdout).toBe('{"contractVersion":1,"resources":[],"notFound":[]}\n');
+    expect(JSON.parse(stdout)).toEqual({
+      contractVersion: 2,
+      resourceEnvelope: modelResourceEnvelope,
+      schemaFormat: modelSchemaFormat,
+      resources: [],
+      notFound: []
+    });
     expect(stderr).toBe("");
     expect(configured).toBe(identity.extension);
+  });
+
+  it("prints a compact property-path contract while staging the full schema", async () => {
+    let stdout = "";
+    const staging = stagingDirectory();
+    const writeResolvedTypes = vi.fn();
+    const resource = {
+      type: "Radius.Test/widgets",
+      apiVersion: "2025-08-01-preview",
+      schema: {
+        type: "object",
+        required: ["name", "properties"],
+        properties: {
+          name: { type: "string" },
+          properties: {
+            type: "object",
+            required: ["data", "environment", "rules"],
+            properties: {
+              data: {
+                type: "object",
+                properties: {},
+                additionalProperties: {
+                  type: "object",
+                  required: ["value"],
+                  properties: {
+                    encoding: {
+                      type: "string",
+                      enum: ["base64", "string"]
+                    },
+                    value: { type: "string", sensitive: true }
+                  },
+                  additionalProperties: false
+                }
+              },
+              environment: { type: "string" },
+              host: { type: "string", readOnly: true },
+              rules: {
+                type: "array",
+                minItems: 1,
+                items: {
+                  type: "object",
+                  required: ["kind"],
+                  properties: {
+                    kind: { type: "string", const: "http" }
+                  },
+                  additionalProperties: false
+                }
+              }
+            },
+            additionalProperties: false
+          }
+        },
+        additionalProperties: false
+      },
+      recipe: { status: "available", definition: "recipe body" }
+    };
+
+    const status = await resolver.main(
+      ["--staging", staging, "Radius.Test/widgets"],
+      {
+        stdout: { write: (value: string) => (stdout += value) },
+        stderr: { write: () => {} },
+        resolve: async () => ({
+          contractVersion: 1,
+          extension: identity.extension,
+          resources: [resource],
+          notFound: []
+        }),
+        writeConfig: async () => {},
+        writeResolvedTypes
+      }
+    );
+
+    expect(status).toBe(0);
+    expect(JSON.parse(stdout)).toEqual({
+      contractVersion: 2,
+      resourceEnvelope: modelResourceEnvelope,
+      schemaFormat: modelSchemaFormat,
+      resources: [
+        {
+          type: resource.type,
+          apiVersion: resource.apiVersion,
+          propertySchema: [
+            "data:object!",
+            "data.*:object",
+            'data.*.encoding:string,enum=["base64","string"]',
+            "data.*.value:string!,secret",
+            "environment:string!",
+            "host:string,ro",
+            "rules:array!,minItems=1",
+            "rules[]:object",
+            'rules[].kind:string!,const="http"'
+          ],
+          recipe: resource.recipe
+        }
+      ],
+      notFound: []
+    });
+    expect(writeResolvedTypes).toHaveBeenCalledExactlyOnceWith(staging, [
+      resource
+    ]);
+  });
+
+  it("exposes Radius-managed secret names without pretending they are Recipe module outputs", () => {
+    const resource = {
+      type: "Radius.Data/mongoDatabases",
+      apiVersion: "2025-08-01-preview",
+      schema: {
+        properties: {
+          properties: {
+            properties: {
+              secrets: {
+                type: "object",
+                readOnly: true,
+                properties: {
+                  connectionString: { type: "string", readOnly: true },
+                  name: { type: "string", readOnly: true }
+                }
+              }
+            }
+          }
+        }
+      },
+      recipe: {
+        status: "available",
+        definition: resolver.extractRecipeDefinition(
+          fixtureRecipePack,
+          "Radius.Data/mongoDatabases"
+        )
+      }
+    };
+    const format = (input: typeof resource) =>
+      resolver.formatModelContract({ resources: [input], notFound: [] })
+        .resources[0].recipe;
+
+    expect(format(resource)).toMatchObject({
+      outputPaths: [
+        "endpoint",
+        "secrets",
+        "secrets.connectionString",
+        "secrets.name"
+      ],
+      managedOutputPaths: ["secrets.name"]
+    });
+    expect(
+      format({
+        ...resource,
+        recipe: {
+          ...resource.recipe,
+          definition: "outputs: {\n  endpoint: 'endpoint'\n}"
+        }
+      }).managedOutputPaths
+    ).toBeUndefined();
+    expect(
+      format({
+        ...resource,
+        schema: {
+          properties: {
+            properties: {
+              properties: {
+                secrets: {
+                  type: "object",
+                  readOnly: true,
+                  properties: {
+                    connectionString: { type: "string", readOnly: true },
+                    name: { type: "string", readOnly: false }
+                  }
+                }
+              }
+            }
+          }
+        }
+      }).managedOutputPaths
+    ).toBeUndefined();
+  });
+
+  it("keeps union and discriminator branches explicit without repeating their base", () => {
+    expect(
+      resolver.compactPropertySchema({
+        type: "object",
+        properties: {
+          properties: {
+            type: "object",
+            properties: {
+              choice: {
+                oneOf: [{ type: "string" }, { type: "null" }]
+              },
+              compute: {
+                type: "object",
+                discriminator: "kind",
+                required: ["identity"],
+                properties: { identity: { type: "string" } },
+                variants: {
+                  local: {
+                    type: "object",
+                    required: ["identity", "kind"],
+                    properties: {
+                      identity: { type: "string" },
+                      kind: { type: "string", const: "local" }
+                    },
+                    additionalProperties: false
+                  }
+                }
+              }
+            },
+            additionalProperties: false
+          }
+        },
+        additionalProperties: false
+      })
+    ).toEqual([
+      "choice:oneOf",
+      "choice|0:string",
+      "choice|1:null",
+      'compute:object,discriminator="kind"',
+      "compute.identity:string!",
+      "compute{local}:object",
+      'compute{local}.kind:string!,const="local"'
+    ]);
   });
 
   it("routes nonfatal resolver warnings through command stderr", async () => {
@@ -1642,8 +1871,17 @@ describe("command boundary", () => {
 
     expect(status).toBe(0);
     expect(JSON.parse(stdout)).toEqual({
-      contractVersion: 1,
-      resources: [resource],
+      contractVersion: 2,
+      resourceEnvelope: modelResourceEnvelope,
+      schemaFormat: modelSchemaFormat,
+      resources: [
+        {
+          type: resource.type,
+          apiVersion: resource.apiVersion,
+          propertySchema: [],
+          recipe: resource.recipe
+        }
+      ],
       notFound: []
     });
     expect(stderr).toBe("Warning: Recipe source unavailable.\n");
@@ -1687,8 +1925,16 @@ describe("command boundary", () => {
 
     expect(status).toBe(0);
     expect(JSON.parse(stdout)).toEqual({
-      contractVersion: 1,
-      resources: [resource],
+      contractVersion: 2,
+      resourceEnvelope: modelResourceEnvelope,
+      schemaFormat: modelSchemaFormat,
+      resources: [
+        {
+          type: resource.type,
+          apiVersion: resource.apiVersion,
+          propertySchema: []
+        }
+      ],
       notFound: [missing]
     });
     expect(stderr).toBe("");
@@ -1824,7 +2070,9 @@ describe("command boundary", () => {
 
     expect(result.status, result.stderr).toBe(0);
     expect(JSON.parse(result.stdout)).toMatchObject({
-      contractVersion: 1,
+      contractVersion: 2,
+      resourceEnvelope: modelResourceEnvelope,
+      schemaFormat: modelSchemaFormat,
       resources: [
         { type: "Radius.Core/applications" },
         { type: "Radius.Data/postgreSqlDatabases" }
@@ -1840,6 +2088,9 @@ describe("command boundary", () => {
     expect(JSON.parse(result.stdout).resources[1].recipe.definition).toContain(
       "'Radius.Data/postgreSqlDatabases': {"
     );
+    expect(JSON.parse(result.stdout).resources[1].recipe.outputPaths).toEqual([
+      "host"
+    ]);
     expect(result.stderr).toBe("");
     expect(
       JSON.parse(
@@ -1908,8 +2159,14 @@ describe("command boundary", () => {
       "Radius.Compute/containerImages",
       "Radius.Core/applications"
     ]);
+    expect(contract.contractVersion).toBe(2);
+    expect(contract.resourceEnvelope).toBe(modelResourceEnvelope);
+    expect(contract.schemaFormat).toBe(modelSchemaFormat);
     expect(
-      contract.resources.every((resource: object) => "schema" in resource)
+      contract.resources.every(
+        (resource: object) =>
+          "propertySchema" in resource && !("schema" in resource)
+      )
     ).toBe(true);
     expect(contract.resources[0].recipe).toMatchObject({
       status: "available",

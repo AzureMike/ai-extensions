@@ -39,16 +39,23 @@ export {
 } from "./radius-type-schema.mjs";
 import {
   extractRecipeDefinition,
+  extractRecipeOutputPaths,
   parseAzureRecipePackPin,
   validateAzureRecipePack
 } from "./radius-recipe-pack.mjs";
 
 export {
   extractRecipeDefinition,
+  extractRecipeOutputPaths,
   parseAzureRecipePackPin
 } from "./radius-recipe-pack.mjs";
 
 const CONTRACT_VERSION = 1;
+const MODEL_CONTRACT_VERSION = 2;
+const RESOURCE_ENVELOPE =
+  "Author name and properties; location and tags are optional. id, apiVersion, type, systemData, and top-level provisioningState are read-only.";
+const SCHEMA_FORMAT =
+  "Entries are properties-relative path:type. ! required; ro read-only; wo write-only; secret sensitive; [] array item; * map value; {name} discriminated variant; |N oneOf branch. Objects are closed unless followed by *. When present, recipe.outputPaths lists proven read-only paths; recipe.managedOutputPaths are Radius-generated metadata, not Recipe module outputs. An absent outputPaths list for an opaque module means unknown, not no outputs. Do not read an unlisted ro property without separate proof.";
 const GENERATED_ROOT =
   "https://raw.githubusercontent.com/radius-project/radius";
 const GENERATED_PATH = "hack/bicep-types-radius/generated";
@@ -96,6 +103,203 @@ function usageError(text = USAGE) {
 function requireObject(value, context) {
   if (!isObject(value)) throw new Error(`${context} must be an object.`);
   return value;
+}
+
+function propertyPath(parent, name) {
+  const segment =
+    /^[A-Za-z_][A-Za-z0-9_]*$/u.test(name) ? name : `[${JSON.stringify(name)}]`;
+  if (parent === "") return segment;
+  return segment.startsWith("[") ?
+      `${parent}${segment}`
+    : `${parent}.${segment}`;
+}
+
+function schemaLine(pathValue, schema, required) {
+  const type =
+    typeof schema.type === "string" ? schema.type
+    : Array.isArray(schema.oneOf) ? "oneOf"
+    : "unknown";
+  let line = `${pathValue}:${type}${required ? "!" : ""}`;
+  if (schema.readOnly === true) line += ",ro";
+  if (schema.writeOnly === true) line += ",wo";
+  if (schema.sensitive === true) line += ",secret";
+  if (typeof schema.discriminator === "string") {
+    line += `,discriminator=${JSON.stringify(schema.discriminator)}`;
+  }
+  for (const constraint of [
+    "const",
+    "enum",
+    "minimum",
+    "maximum",
+    "minLength",
+    "maxLength",
+    "pattern",
+    "minItems",
+    "maxItems"
+  ]) {
+    if (schema[constraint] !== undefined) {
+      line += `,${constraint}=${JSON.stringify(schema[constraint])}`;
+    }
+  }
+  return line;
+}
+
+function variantSpecificSchema(base, variant) {
+  const baseProperties = isObject(base.properties) ? base.properties : {};
+  const variantProperties =
+    isObject(variant.properties) ? variant.properties : {};
+  const properties = {};
+  for (const [name, value] of Object.entries(variantProperties).sort(
+    ([left], [right]) => left.localeCompare(right)
+  )) {
+    if (JSON.stringify(value) !== JSON.stringify(baseProperties[name])) {
+      properties[name] = value;
+    }
+  }
+  const baseRequired = new Set(
+    Array.isArray(base.required) ? base.required : []
+  );
+  const required = (Array.isArray(variant.required) ? variant.required : [])
+    .filter((name) => !baseRequired.has(name))
+    .sort();
+  const result = { ...variant, properties };
+  delete result.required;
+  if (required.length > 0) result.required = required;
+  return result;
+}
+
+function appendSchemaLines(lines, schema, pathValue, required = false) {
+  if (!isObject(schema)) {
+    lines.push(`${pathValue}:unknown${required ? "!" : ""}`);
+    return;
+  }
+  lines.push(schemaLine(pathValue, schema, required));
+
+  const properties = isObject(schema.properties) ? schema.properties : {};
+  const requiredProperties = new Set(
+    Array.isArray(schema.required) ? schema.required : []
+  );
+  for (const [name, property] of Object.entries(properties).sort(
+    ([left], [right]) => left.localeCompare(right)
+  )) {
+    appendSchemaLines(
+      lines,
+      property,
+      propertyPath(pathValue, name),
+      requiredProperties.has(name)
+    );
+  }
+
+  if (isObject(schema.additionalProperties)) {
+    appendSchemaLines(lines, schema.additionalProperties, `${pathValue}.*`);
+  } else if (schema.additionalProperties === true) {
+    lines.push(`${pathValue}.*:any`);
+  }
+
+  if (isObject(schema.items)) {
+    appendSchemaLines(lines, schema.items, `${pathValue}[]`);
+  }
+
+  if (Array.isArray(schema.oneOf)) {
+    schema.oneOf.forEach((branch, index) => {
+      appendSchemaLines(lines, branch, `${pathValue}|${index}`);
+    });
+  }
+
+  if (isObject(schema.variants)) {
+    for (const [name, variant] of Object.entries(schema.variants).sort(
+      ([left], [right]) => left.localeCompare(right)
+    )) {
+      appendSchemaLines(
+        lines,
+        isObject(variant) ? variantSpecificSchema(schema, variant) : variant,
+        `${pathValue}{${name}}`
+      );
+    }
+  }
+}
+
+export function compactPropertySchema(schema) {
+  const envelope =
+    (
+      isObject(schema) &&
+      isObject(schema.properties) &&
+      isObject(schema.properties.properties)
+    ) ?
+      schema.properties.properties
+    : undefined;
+  if (envelope === undefined) return [];
+
+  const lines = [];
+  const properties = isObject(envelope.properties) ? envelope.properties : {};
+  const requiredProperties = new Set(
+    Array.isArray(envelope.required) ? envelope.required : []
+  );
+  for (const [name, property] of Object.entries(properties).sort(
+    ([left], [right]) => left.localeCompare(right)
+  )) {
+    appendSchemaLines(lines, property, name, requiredProperties.has(name));
+  }
+  if (isObject(envelope.additionalProperties)) {
+    appendSchemaLines(lines, envelope.additionalProperties, "*");
+  } else if (envelope.additionalProperties === true) {
+    lines.push("*:any");
+  }
+  return lines;
+}
+
+export function formatModelContract(contract) {
+  return {
+    contractVersion: MODEL_CONTRACT_VERSION,
+    resourceEnvelope: RESOURCE_ENVELOPE,
+    schemaFormat: SCHEMA_FORMAT,
+    resources: contract.resources.map((resource) => {
+      const formatted = {
+        type: resource.type,
+        apiVersion: resource.apiVersion,
+        propertySchema: compactPropertySchema(resource.schema)
+      };
+      if (resource.recipe !== undefined) {
+        formatted.recipe = { ...resource.recipe };
+        if (
+          resource.recipe.status === "available" &&
+          typeof resource.recipe.definition === "string"
+        ) {
+          const outputPaths = extractRecipeOutputPaths(
+            resource.recipe.definition
+          );
+          if (outputPaths !== undefined) {
+            // Radius materializes returned Recipe secrets in a managed Secret.
+            // Its reserved name is generated by Radius, not listed in the
+            // module's output mappings. Only expose it when both the exact
+            // schema and this Recipe prove the managed-secret contract.
+            const secretName =
+              resource.schema?.properties?.properties?.properties?.secrets
+                ?.properties?.name;
+            const managedOutputPaths =
+              (
+                isObject(secretName) &&
+                secretName.readOnly === true &&
+                outputPaths.some(
+                  (path) =>
+                    path.startsWith("secrets.") && path !== "secrets.name"
+                )
+              ) ?
+                ["secrets.name"]
+              : [];
+            formatted.recipe.outputPaths = [
+              ...new Set([...outputPaths, ...managedOutputPaths])
+            ];
+            if (managedOutputPaths.length > 0) {
+              formatted.recipe.managedOutputPaths = managedOutputPaths;
+            }
+          }
+        }
+      }
+      return formatted;
+    }),
+    notFound: contract.notFound
+  };
 }
 
 export function parseResourceSelector(value) {
@@ -965,11 +1169,7 @@ export async function main(
     const contract = await resolve(parsed.selectors, {
       warn: (text) => stderr.write(`${text}\n`)
     });
-    const output = `${JSON.stringify({
-      contractVersion: contract.contractVersion,
-      resources: contract.resources,
-      notFound: contract.notFound
-    })}\n`;
+    const output = `${JSON.stringify(formatModelContract(contract))}\n`;
     await writeConfig(stagingDir, contract.extension);
     await writeResolvedTypes(stagingDir, contract.resources);
     stdout.write(output);

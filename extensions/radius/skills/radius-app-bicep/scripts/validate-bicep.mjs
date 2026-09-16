@@ -76,9 +76,9 @@ function parseRepairState(value) {
   return {
     attempts,
     fingerprint:
-      typeof fingerprint === "string" && fingerprint.trim() ?
-        fingerprint.trim()
-      : null
+      typeof fingerprint === "string" && fingerprint.trim()
+        ? fingerprint.trim()
+        : null,
   };
 }
 
@@ -89,7 +89,7 @@ function evaluateRepairAttempt(state) {
       verdict: "exhausted",
       allowed: false,
       attempt,
-      reason: repairBudgetSpentMessage(state.attempts)
+      reason: repairBudgetSpentMessage(state.attempts),
     };
   }
   return { verdict: "allowed", allowed: true, attempt, reason: "" };
@@ -117,7 +117,7 @@ function fingerprintCompilerOutput(output) {
         .replace(/:\d+(?::\d+)?(?=:)/gu, ":")
         .replace(/\bline \d+\b/gu, "line")
         .replace(/\s+/gu, " ")
-        .trim()
+        .trim(),
     )
     .filter((line) => line !== "");
   if (lines.length === 0) return "";
@@ -156,7 +156,7 @@ function readRunRecord(app) {
     file,
     record: parsed,
     state: parseRepairState(parsed.repair),
-    unusable: false
+    unusable: false,
   };
 }
 
@@ -172,7 +172,7 @@ function readRunRecord(app) {
 function reserveAttempt(run, fingerprint) {
   const updated = {
     ...run.record,
-    repair: nextRepairState(run.state, fingerprint)
+    repair: nextRepairState(run.state, fingerprint),
   };
   const temporary = `${run.file}.${process.pid}.tmp`;
   try {
@@ -318,15 +318,15 @@ function printDiagnostic(result) {
   }
   const level = typeof result.level === "string" ? result.level : "warning";
   const rule =
-    typeof result.ruleId === "string" && result.ruleId ?
-      ` ${result.ruleId}`
-    : "";
+    typeof result.ruleId === "string" && result.ruleId
+      ? ` ${result.ruleId}`
+      : "";
   const text =
-    typeof result.message?.text === "string" && result.message.text ?
-      result.message.text
-    : "Bicep reported a diagnostic.";
+    typeof result.message?.text === "string" && result.message.text
+      ? result.message.text
+      : "Bicep reported a diagnostic.";
   report(
-    `${location ? `${location}: ` : ""}${level}${rule}: ${text}${repairHint(result.ruleId, text)}`
+    `${location ? `${location}: ` : ""}${level}${rule}: ${text}${repairHint(result.ruleId, text)}`,
   );
 }
 
@@ -358,11 +358,11 @@ function resolveTemplateString(value, template, parameterValues) {
   const replacement = parameterValue(
     formattedParameter[2],
     template,
-    parameterValues
+    parameterValues,
   );
-  return replacement === null ? null : (
-      formattedParameter[1].replace("{0}", replacement)
-    );
+  return replacement === null
+    ? null
+    : formattedParameter[1].replace("{0}", replacement);
 }
 
 function buildSourceRef(source) {
@@ -386,7 +386,7 @@ function checkContainerImageBuildSources(
   template,
   app,
   parentPath = "",
-  parameterValues = new Map()
+  parameterValues = new Map(),
 ) {
   let failed = false;
   for (const [symbol, resource] of Object.entries(template.resources ?? {})) {
@@ -400,11 +400,11 @@ function checkContainerImageBuildSources(
       ) {
         const nestedParameterValues = new Map();
         for (const [name, argument] of Object.entries(
-          resource?.properties?.parameters ?? {}
+          resource?.properties?.parameters ?? {},
         )) {
           nestedParameterValues.set(
             name,
-            resolveTemplateString(argument?.value, template, parameterValues)
+            resolveTemplateString(argument?.value, template, parameterValues),
           );
         }
         if (
@@ -412,7 +412,7 @@ function checkContainerImageBuildSources(
             nestedTemplate,
             app,
             resourcePath,
-            nestedParameterValues
+            nestedParameterValues,
           )
         ) {
           failed = true;
@@ -431,7 +431,7 @@ function checkContainerImageBuildSources(
     const source = resolveTemplateString(
       resource?.properties?.properties?.build?.source,
       template,
-      parameterValues
+      parameterValues,
     );
     if (typeof source !== "string" || source.startsWith("[")) {
       continue;
@@ -443,7 +443,7 @@ function checkContainerImageBuildSources(
     }
 
     report(
-      `${app}: error container-image-build-source: ${resourcePath}.properties.build.source: build ref "${ref}" looks like an abbreviated commit SHA; use the full 40-character SHA or an explicit tag ref such as "refs/tags/v1.2.3".`
+      `${app}: error container-image-build-source: ${resourcePath}.properties.build.source: build ref "${ref}" looks like an abbreviated commit SHA; use the full 40-character SHA or an explicit tag ref such as "refs/tags/v1.2.3".`,
     );
     failed = true;
   }
@@ -461,7 +461,7 @@ const packagingBasenamePatterns = [
   /^docker-compose.*\.ya?ml$/u,
   /^compose.*\.ya?ml$/u,
   /^chart\.ya?ml$/u,
-  /^values\.ya?ml$/u
+  /^values\.ya?ml$/u,
 ];
 
 // Decodes each path segment on its own so one malformed escape sequence degrades
@@ -499,8 +499,8 @@ function sourceLocationBasename(codeReference) {
     }
   }
   const segments = location.split("/").filter((segment) => segment !== "");
-  return segments.length === 0 ?
-      ""
+  return segments.length === 0
+    ? ""
     : segments[segments.length - 1].toLowerCase();
 }
 
@@ -512,11 +512,86 @@ function isPackagingSourceLocation(codeReference) {
   );
 }
 
+// Bicep emits multiline strings inside ARM format() as an escaped first
+// argument. Decode only that literal portion: a peer reference may fill a
+// placeholder, but cannot change where a shell heredoc terminator begins.
+function literalShellScript(value) {
+  if (typeof value !== "string") return null;
+  if (!value.startsWith("[")) return value;
+  const formatted = /^\[format\('((?:''|[^'])*)',/su.exec(value);
+  if (formatted === null) return null;
+  return formatted[1]
+    .replaceAll("''", "'")
+    .replace(/\\(n|r|t|\\)/gu, (_match, escaped) =>
+      ({ n: "\n", r: "\r", t: "\t", "\\": "\\" })[escaped],
+    );
+}
+
+function indentedHeredocTerminators(script) {
+  const lines = script.split(/\r?\n/u);
+  const invalid = [];
+  for (let index = 0; index < lines.length; index += 1) {
+    const openers = lines[index].matchAll(/<<(-?)[ \t]*(?:'([A-Za-z_][A-Za-z0-9_]*)'|"([A-Za-z_][A-Za-z0-9_]*)"|([A-Za-z_][A-Za-z0-9_]*))/gu);
+    for (const opener of openers) {
+      const marker = opener[2] ?? opener[3] ?? opener[4];
+      let closingLine = null;
+      let indentedLine = null;
+      for (let later = index + 1; later < lines.length; later += 1) {
+        const candidate = opener[1] === "-" ? lines[later].replace(/^\t+/u, "") : lines[later];
+        if (candidate === marker) {
+          closingLine = later + 1;
+          break;
+        }
+        if (indentedLine === null && lines[later].trim() === marker) {
+          indentedLine = later + 1;
+        }
+      }
+      if (closingLine === null && indentedLine !== null) {
+        invalid.push({ marker, line: indentedLine });
+      }
+    }
+  }
+  return invalid;
+}
+
+function checkShellHeredocs(template, app, parentPath = "") {
+  let failed = false;
+  for (const [symbol, resource] of Object.entries(template.resources ?? {})) {
+    const resourcePath = parentPath ? `${parentPath}.${symbol}` : symbol;
+    if (resource?.type === "Microsoft.Resources/deployments") {
+      const nested = resource?.properties?.template;
+      if (nested !== null && typeof nested === "object" && !Array.isArray(nested)) {
+        failed = checkShellHeredocs(nested, app, resourcePath) || failed;
+      }
+      continue;
+    }
+    if (typeof resource?.type !== "string" || !resource.type.startsWith("Radius.Compute/containers@")) continue;
+    for (const [containerKey, container] of Object.entries(resource?.properties?.properties?.containers ?? {})) {
+      const command = Array.isArray(container?.command) ? container.command : [];
+      const args = Array.isArray(container?.args) ? container.args : [];
+      const isShell = command.some((part) => typeof part === "string" && /(?:^|\/)(?:sh|bash)$/u.test(part));
+      const executesScript = command.some((part) => typeof part === "string" && /^-[a-z]*c[a-z]*$/iu.test(part));
+      if (!isShell || !executesScript) continue;
+      for (const [field, parts] of [["command", command], ["args", args]]) {
+        parts.forEach((part, partIndex) => {
+          const script = literalShellScript(part);
+          if (script === null || !script.includes("<<")) return;
+          for (const { marker, line } of indentedHeredocTerminators(script)) {
+            report(`${app}: error indented-shell-heredoc: ${resourcePath}.properties.containers.${containerKey}.${field}[${partIndex}]: closing ${marker} on script line ${line} is indented, so the shell consumes it and following commands as heredoc content. Put the marker at column 1 (or use tabs with <<-).`);
+            failed = true;
+          }
+        });
+      }
+    }
+  }
+  return failed;
+}
+
 function checkSourceCodeReferences(
   template,
   app,
   parentPath = "",
-  parameterValues = new Map()
+  parameterValues = new Map(),
 ) {
   let failed = false;
   for (const [symbol, resource] of Object.entries(template.resources ?? {})) {
@@ -530,11 +605,11 @@ function checkSourceCodeReferences(
       ) {
         const nestedParameterValues = new Map();
         for (const [name, argument] of Object.entries(
-          resource?.properties?.parameters ?? {}
+          resource?.properties?.parameters ?? {},
         )) {
           nestedParameterValues.set(
             name,
-            resolveTemplateString(argument?.value, template, parameterValues)
+            resolveTemplateString(argument?.value, template, parameterValues),
           );
         }
         if (
@@ -542,7 +617,7 @@ function checkSourceCodeReferences(
             nestedTemplate,
             app,
             resourcePath,
-            nestedParameterValues
+            nestedParameterValues,
           )
         ) {
           failed = true;
@@ -559,13 +634,12 @@ function checkSourceCodeReferences(
     }
 
     const rawCodeReference = resource?.properties?.properties?.codeReference;
-    const customTypeHint =
-      resource.type.startsWith("Radius.Resources/") ?
-        " If this custom type predates the source-reference contract, add the optional codeReference string property to custom-types.yaml and republish custom-types.tgz."
+    const customTypeHint = resource.type.startsWith("Radius.Resources/")
+      ? " If this custom type predates the source-reference contract, add the optional codeReference string property to custom-types.yaml and republish custom-types.tgz."
       : "";
     if (typeof rawCodeReference !== "string" || !rawCodeReference.trim()) {
       report(
-        `${app}: error source-code-reference: ${resourcePath}.properties.codeReference: every non-application Radius resource must store its verified worktree path or GitHub branch/file URL in app.bicep.${customTypeHint}`
+        `${app}: error source-code-reference: ${resourcePath}.properties.codeReference: every non-application Radius resource must store its verified worktree path or GitHub branch/file URL in app.bicep.${customTypeHint}`,
       );
       failed = true;
       continue;
@@ -573,7 +647,7 @@ function checkSourceCodeReferences(
     const codeReference = resolveTemplateString(
       rawCodeReference,
       template,
-      parameterValues
+      parameterValues,
     );
     const sourceLocationPattern =
       /^(?!\.{1,2}(?:\/|$))(?!.*(?:^|\/)\.\.(?:\/|$))[^\u0000-\u001f\u007f#]+(?:#L[1-9]\d*)?$/u;
@@ -616,7 +690,7 @@ function checkSourceCodeReferences(
       // durable path and would render as a dead source link, so reject it along
       // with malformed literal values.
       report(
-        `${app}: error source-code-reference: ${resourcePath}.properties.codeReference: ${JSON.stringify(rawCodeReference)} must resolve to a repo-relative worktree path using forward slashes or an exact https://github.com/<owner>/<repo>/blob/<branch>/<file> URL, optionally followed by #L<line>.${customTypeHint}`
+        `${app}: error source-code-reference: ${resourcePath}.properties.codeReference: ${JSON.stringify(rawCodeReference)} must resolve to a repo-relative worktree path using forward slashes or an exact https://github.com/<owner>/<repo>/blob/<branch>/<file> URL, optionally followed by #L<line>.${customTypeHint}`,
       );
       failed = true;
       continue;
@@ -630,7 +704,7 @@ function checkSourceCodeReferences(
       isPackagingSourceLocation(codeReference)
     ) {
       report(
-        `${app}: error source-code-reference: ${resourcePath}.properties.codeReference: ${JSON.stringify(rawCodeReference)} is a packaging file; point a container at the entrypoint of the process it runs, resolved from its command/args or through the image's Dockerfile.`
+        `${app}: error source-code-reference: ${resourcePath}.properties.codeReference: ${JSON.stringify(rawCodeReference)} is a packaging file; point a container at the entrypoint of the process it runs, resolved from its command/args or through the image's Dockerfile.`,
       );
       failed = true;
     }
@@ -805,7 +879,7 @@ function checkRuntimeVariableExpansion(
   template,
   app,
   parentPath = "",
-  parameterValues = new Map()
+  parameterValues = new Map(),
 ) {
   let failed = false;
   for (const [symbol, resource] of Object.entries(template.resources ?? {})) {
@@ -819,11 +893,11 @@ function checkRuntimeVariableExpansion(
       ) {
         const nestedParameterValues = new Map();
         for (const [name, argument] of Object.entries(
-          resource?.properties?.parameters ?? {}
+          resource?.properties?.parameters ?? {},
         )) {
           nestedParameterValues.set(
             name,
-            resolveTemplateString(argument?.value, template, parameterValues)
+            resolveTemplateString(argument?.value, template, parameterValues),
           );
         }
         if (
@@ -831,7 +905,7 @@ function checkRuntimeVariableExpansion(
             nestedTemplate,
             app,
             resourcePath,
-            nestedParameterValues
+            nestedParameterValues,
           )
         ) {
           failed = true;
@@ -863,7 +937,7 @@ function checkRuntimeVariableExpansion(
         const value = resolveTemplateString(
           rawValue,
           template,
-          parameterValues
+          parameterValues,
         );
         if (typeof value !== "string") {
           continue;
@@ -878,11 +952,213 @@ function checkRuntimeVariableExpansion(
             continue;
           }
           const advice =
-            referenced === name ?
-              "a variable cannot read itself"
-            : `bind it with valueFrom.secretKeyRef, which the Kubernetes Container Recipe emits ahead of every plain value, using an authored or reused Secret for a developer-supplied credential or the declared Recipe secret for a Recipe-generated credential. A verified compatible Kubernetes Secret connection can provide a secret-backed generated variable instead. If an explicit schema-supported or legacy @secure() env.value fallback must stay plain, its key must sort before ${JSON.stringify(name)} — report the conflict when the application dictates both names`;
+            referenced === name
+              ? "a variable cannot read itself"
+              : `bind it with valueFrom.secretKeyRef, which the Kubernetes Container Recipe emits ahead of every plain value, using an authored or reused Secret for a developer-supplied credential or the declared Recipe secret for a Recipe-generated credential. A verified compatible Kubernetes Secret connection can provide a secret-backed generated variable instead. If an explicit schema-supported or legacy @secure() env.value fallback must stay plain, its key must sort before ${JSON.stringify(name)} — report the conflict when the application dictates both names`;
           report(
-            `${app}: error runtime-variable: ${resourcePath}.properties.containers.${containerKey}.env.${name}: reads $(${referenced}), which the containers recipe emits at or after it, so it is never substituted; ${advice}.`
+            `${app}: error runtime-variable: ${resourcePath}.properties.containers.${containerKey}.env.${name}: reads $(${referenced}), which the containers recipe emits at or after it, so it is never substituted; ${advice}.`,
+          );
+          failed = true;
+        }
+      }
+    }
+  }
+  return failed;
+}
+
+// Bicep accepts a reference to an undeclared top-level property on an
+// extensible Radius resource. In a container secretKeyRef that can compile to
+// reference('mongoDb').secrets.name even though the managed Secret name lives
+// under reference('mongoDb').properties.secrets.name. Limit this check to a
+// proven Radius producer in the same compiled template; other providers can
+// legitimately define their own top-level response shape.
+const ROOT_RADIUS_SECRET_NAME = /\breference\('([^']+)'\)\.secrets\.name\b/gu;
+
+function checkMisplacedRadiusSecretNames(template, app, parentPath = "") {
+  let failed = false;
+  const resources = template.resources ?? {};
+  for (const [symbol, resource] of Object.entries(resources)) {
+    const resourcePath = parentPath ? `${parentPath}.${symbol}` : symbol;
+    if (resource?.type === "Microsoft.Resources/deployments") {
+      if (
+        isPlainObject(resource?.properties?.template) &&
+        checkMisplacedRadiusSecretNames(
+          resource.properties.template,
+          app,
+          resourcePath,
+        )
+      ) {
+        failed = true;
+      }
+      continue;
+    }
+    if (!resource?.type?.startsWith("Radius.Compute/containers@")) {
+      continue;
+    }
+    for (const [containerKey, container] of Object.entries(
+      resource?.properties?.properties?.containers ?? {},
+    )) {
+      for (const [name, entry] of Object.entries(container?.env ?? {})) {
+        const secretName = entry?.valueFrom?.secretKeyRef?.secretName;
+        if (
+          typeof secretName !== "string" ||
+          !secretName.startsWith("[") ||
+          !secretName.endsWith("]")
+        ) {
+          continue;
+        }
+        for (const match of secretName.matchAll(ROOT_RADIUS_SECRET_NAME)) {
+          if (!resources[match[1]]?.type?.startsWith("Radius.")) {
+            continue;
+          }
+          report(
+            `${app}: error misplaced-radius-secret-name: ${resourcePath}.properties.containers.${containerKey}.env.${name}.valueFrom.secretKeyRef.secretName: ${match[0]} reads the root of a Radius resource. Its managed Secret name is under ${match[1]}.properties.secrets.name.`,
+          );
+          failed = true;
+        }
+      }
+    }
+  }
+  return failed;
+}
+
+// A literal URI whose host is a single DNS label is almost always a
+// cluster-local service address. Unlike a public FQDN, it resolves only when
+// this deployment actually creates the peer (or the cluster supplies an
+// unusual ambient service). Bicep happily accepts a stale address such as
+// `http://ai-service:5001/`, so a model can compile, render a graph, and still
+// fail as soon as the workload exercises that feature.
+//
+// Keep this deliberately narrower than a general URL validator. Dynamic ARM
+// expressions are already tied to another resource and cannot be evaluated
+// here; dotted hosts are external or namespace-qualified; localhost is local
+// to the workload. What remains is the exact high-confidence shape the model
+// must either back with a Radius resource or remove after proving it optional.
+const LITERAL_SINGLE_LABEL_URI =
+  /\b[A-Za-z][A-Za-z0-9+.-]*:\/\/(?:[^@\s/?#]+@)?([A-Za-z0-9](?:[A-Za-z0-9-]*[A-Za-z0-9])?)(?::[0-9]{2,5})?(?=[/?#\s'";]|$)/gu;
+
+function collectStringLeaves(value, pathParts, leaves) {
+  if (typeof value === "string") {
+    leaves.push({ pathParts, value });
+    return;
+  }
+  if (Array.isArray(value)) {
+    value.forEach((item, index) =>
+      collectStringLeaves(item, [...pathParts, `[${index}]`], leaves),
+    );
+    return;
+  }
+  if (!isPlainObject(value)) {
+    return;
+  }
+  for (const [name, item] of Object.entries(value)) {
+    collectStringLeaves(item, [...pathParts, name], leaves);
+  }
+}
+
+function resourceAliases(template, parameterValues) {
+  const aliases = new Set();
+  for (const [symbol, resource] of Object.entries(template.resources ?? {})) {
+    if (
+      typeof resource?.type !== "string" ||
+      !resource.type.startsWith("Radius.")
+    ) {
+      continue;
+    }
+    aliases.add(symbol.toLowerCase());
+    const name = resolveTemplateString(
+      resource.name,
+      template,
+      parameterValues,
+    );
+    if (typeof name !== "string" || name.startsWith("[") || !name.trim()) {
+      continue;
+    }
+    const normalized = name.toLowerCase();
+    aliases.add(normalized);
+    if (!resource.type.startsWith("Radius.Compute/containers@")) {
+      continue;
+    }
+    const containers = resource?.properties?.properties?.containers;
+    if (!isPlainObject(containers)) {
+      continue;
+    }
+    for (const containerKey of Object.keys(containers)) {
+      aliases.add(`${normalized}-${containerKey.toLowerCase()}`);
+    }
+  }
+  return aliases;
+}
+
+function checkUnmodeledRuntimePeers(
+  template,
+  app,
+  parentPath = "",
+  parameterValues = new Map(),
+) {
+  let failed = false;
+  const aliases = resourceAliases(template, parameterValues);
+  for (const [symbol, resource] of Object.entries(template.resources ?? {})) {
+    const resourcePath = parentPath ? `${parentPath}.${symbol}` : symbol;
+    if (resource?.type === "Microsoft.Resources/deployments") {
+      const nestedTemplate = resource?.properties?.template;
+      if (isPlainObject(nestedTemplate)) {
+        const nestedParameterValues = new Map();
+        for (const [name, argument] of Object.entries(
+          resource?.properties?.parameters ?? {},
+        )) {
+          nestedParameterValues.set(
+            name,
+            resolveTemplateString(argument?.value, template, parameterValues),
+          );
+        }
+        if (
+          checkUnmodeledRuntimePeers(
+            nestedTemplate,
+            app,
+            resourcePath,
+            nestedParameterValues,
+          )
+        ) {
+          failed = true;
+        }
+      }
+      continue;
+    }
+    if (
+      typeof resource?.type !== "string" ||
+      !resource.type.startsWith("Radius.Compute/containers@")
+    ) {
+      continue;
+    }
+    const containers = resource?.properties?.properties?.containers;
+    if (!isPlainObject(containers)) {
+      continue;
+    }
+    for (const [containerKey, container] of Object.entries(containers)) {
+      const leaves = [];
+      collectStringLeaves(container, [], leaves);
+      for (const leaf of leaves) {
+        const value = resolveTemplateString(
+          leaf.value,
+          template,
+          parameterValues,
+        );
+        if (typeof value !== "string" || value.startsWith("[")) {
+          continue;
+        }
+        const reported = new Set();
+        for (const match of value.matchAll(LITERAL_SINGLE_LABEL_URI)) {
+          const host = match[1].toLowerCase();
+          if (host === "localhost" || aliases.has(host) || reported.has(host)) {
+            continue;
+          }
+          reported.add(host);
+          const suffix = leaf.pathParts
+            .map((part) => (part.startsWith("[") ? part : `.${part}`))
+            .join("");
+          report(
+            `${app}: error unmodeled-runtime-peer: ${resourcePath}.properties.containers.${containerKey}${suffix}: literal URI host ${JSON.stringify(host)} has no matching Radius resource in this template. Reference a modeled producer's host output, add the required workload or backing service, or remove the setting only when the selected source profile proves the peer optional and its default safe.`,
           );
           failed = true;
         }
@@ -1159,7 +1435,7 @@ function readResolvedTypes(app, staged) {
       status: "unusable",
       file,
       types: {},
-      detail: "it is not valid JSON"
+      detail: "it is not valid JSON",
     };
   }
   if (
@@ -1171,7 +1447,7 @@ function readResolvedTypes(app, staged) {
       status: "unusable",
       file,
       types: {},
-      detail: `it is not a version ${RESOLVED_TYPES_CONTRACT_VERSION} resolved-type contract`
+      detail: `it is not a version ${RESOLVED_TYPES_CONTRACT_VERSION} resolved-type contract`,
     };
   }
   for (const [type, entry] of Object.entries(parsed.types)) {
@@ -1183,7 +1459,7 @@ function readResolvedTypes(app, staged) {
         status: "unusable",
         file,
         types: {},
-        detail: `"${type}" does not map each property to a boolean`
+        detail: `"${type}" does not map each property to a boolean`,
       };
     }
   }
@@ -1251,7 +1527,7 @@ function scanSecureParameterTargets(template, app, contract, parentPath = "") {
             nestedTemplate,
             app,
             contract,
-            resourcePath
+            resourcePath,
           )
         ) {
           failed = true;
@@ -1287,13 +1563,13 @@ function scanSecureParameterTargets(template, app, contract, parentPath = "") {
         contract,
         resource.type,
         property,
-        reference[1]
+        reference[1],
       );
       if (finding === null) {
         continue;
       }
       report(
-        `${app}: error secure-parameter-target: ${resourcePath}.properties.${property}: ${finding}`
+        `${app}: error secure-parameter-target: ${resourcePath}.properties.${property}: ${finding}`,
       );
       failed = true;
     }
@@ -1314,7 +1590,7 @@ const bicep = path.join(
   ".radius",
   "ai-extensions",
   "bin",
-  executable
+  executable,
 );
 
 // Compiles the model and distinguishes model diagnostics from a check that
@@ -1330,8 +1606,8 @@ function check(app, staged) {
       maxBuffer: 16 * 1024 * 1024,
       stdio: ["ignore", "pipe", "pipe"],
       timeout: 120_000,
-      windowsHide: true
-    }
+      windowsHide: true,
+    },
   );
   if (compiled.error) {
     report(compiled.error.message);
@@ -1342,7 +1618,7 @@ function check(app, staged) {
   if (compilerFindings === null) {
     report(
       (compiled.stderr ?? "").trim() ||
-        "Bicep did not return valid SARIF diagnostics."
+        "Bicep did not return valid SARIF diagnostics.",
     );
     return EXIT_CHECK_UNAVAILABLE;
   }
@@ -1389,29 +1665,36 @@ function check(app, staged) {
   const invalidBuildSource = checkContainerImageBuildSources(template, app);
   const invalidSourceReference = checkSourceCodeReferences(template, app);
   const invalidConnectionSource = checkConnectionSources(template, app);
+  const invalidShellHeredoc = checkShellHeredocs(template, app);
   const unresolvedRuntimeVariable = checkRuntimeVariableExpansion(
     template,
-    app
+    app,
   );
   const incompatibleAggregateSecretAlias = checkAggregateSecretAliases(
     template,
     app
   );
+  const misplacedRadiusSecretName = checkMisplacedRadiusSecretNames(
+    template,
+    app,
+  );
+  const unmodeledRuntimePeer = checkUnmodeledRuntimePeers(template, app);
   const misplacedSecureParameter = checkSecureParameterTargets(
     template,
     app,
-    resolvedTypes
+    resolvedTypes,
   );
-  return (
-      compilerFailed ||
-        invalidBuildSource ||
-        invalidSourceReference ||
-        invalidConnectionSource ||
-        unresolvedRuntimeVariable ||
-        incompatibleAggregateSecretAlias ||
-        misplacedSecureParameter
-    ) ?
-      EXIT_MODEL_INVALID
+  return compilerFailed ||
+    invalidBuildSource ||
+    invalidSourceReference ||
+    invalidConnectionSource ||
+    invalidShellHeredoc ||
+    unresolvedRuntimeVariable ||
+    incompatibleAggregateSecretAlias ||
+    misplacedRadiusSecretName ||
+    unmodeledRuntimePeer ||
+    misplacedSecureParameter
+    ? EXIT_MODEL_INVALID
     : EXIT_SUCCESS;
 }
 
@@ -1467,11 +1750,11 @@ function main() {
   // so it is reported without failing a compile that otherwise passed.
   const recorded = reserveAttempt(
     { ...run, state: { ...run.state, attempts: decision.attempt - 1 } },
-    fingerprint
+    fingerprint,
   );
   if (recorded) {
     console.error(
-      `Could not record what this compile reported in ${run.file}: ${recorded}. The attempt is counted, but a repeated failure may not be recognized.`
+      `Could not record what this compile reported in ${run.file}: ${recorded}. The attempt is counted, but a repeated failure may not be recognized.`,
     );
   }
 
@@ -1480,7 +1763,7 @@ function main() {
     decision.attempt >= REPAIR_COMPILE_LIMIT
   ) {
     console.error(
-      `This was compile ${decision.attempt} of ${REPAIR_COMPILE_LIMIT}; the repair budget is now spent and the checker will refuse to compile this run again.`
+      `This was compile ${decision.attempt} of ${REPAIR_COMPILE_LIMIT}; the repair budget is now spent and the checker will refuse to compile this run again.`,
     );
   }
   return status;

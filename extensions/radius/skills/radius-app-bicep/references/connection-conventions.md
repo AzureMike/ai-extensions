@@ -135,12 +135,12 @@ A `connections` entry to another container is for relationship metadata/projecti
 env: {
   // peer resource is `resource orderingApi 'Radius.Compute/containers@...' = { name: 'ordering-api', properties: { containers: { ordering: {...} } } }`
   ORDERING_URL: {
-    value: 'http://${orderingApi.properties.hosts['ordering']}:8080'
+    value: 'http://${orderingApi.properties.hosts.ordering}:8080'
   }
 }
 ```
 
-- Host is an entry of the peer's `properties.hosts` output, addressed with **indexed access** (e.g. `orderingApi.properties.hosts['ordering']`, where `ordering` is the peer's key in its own `containers` map), never a literal built from the resource `name` or `<resource-name>-<containerKey>`. Use indexed (`['...']`) rather than dot access so keys containing hyphens or other non-identifier characters resolve. The containers recipe populates `hosts` with each port-exposing container's actual Service FQDN, so this reference is stable, predictable, and creates a deploy-time dependency edge.
+- Host is an entry of the peer's `properties.hosts` output, never a literal built from its resource `name` or `<resource-name>-<containerKey>`. Use dot access for a valid Bicep identifier (`orderingApi.properties.hosts.ordering`) and indexed access for a key that needs quoting (`orderingApi.properties.hosts['ordering-api']`). Preserve the peer's exact container key. Unnecessary quoted access triggers `prefer-unquoted-property-names`; do not introduce that warning before compilation. The containers recipe populates `hosts` with each port-exposing container's actual Service FQDN, and the reference creates a deploy-time dependency edge.
 - `hosts` is read-only — reference it, never set it. It has one entry per port-exposing container, so a multi-container peer publishes all of its Service hosts.
 - Do not create a dependency cycle: because each `hosts` reference adds a deploy-time dependency edge, two containers that both reference each other's `hosts` form a circular dependency that fails to deploy. Break it by resolving one direction through `hosts` and the other via the peer's Service DNS name as a plain string literal (`<peer-resource-name>-<containerKey>.<namespace>`). This cycle break is the deliberate exception to the no-literal rule above. Report the cycle rather than emitting mutual references or adding a route for internal traffic.
 - Port is the peer container's published `containerPort` number from source.

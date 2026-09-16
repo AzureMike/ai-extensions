@@ -346,6 +346,21 @@ function repositoryRoot(radiusDir) {
   return (result.stdout || "").trim() || path.dirname(radiusDir);
 }
 
+// The staging script is already called for every modeled repository. Surface
+// its read-only Git revision once so the agent need not repeatedly inspect
+// .git internals (or retry rejected Git tool calls) just to pin a source build.
+// Keep stdout reserved for the staging path, which callers may parse directly.
+function sourceHeadCommit(radiusDir) {
+  const result = spawnSync(
+    "git",
+    ["-C", radiusDir, "rev-parse", "--verify", "HEAD^{commit}"],
+    { encoding: "utf8", timeout: 15_000, windowsHide: true }
+  );
+  if (result.error || result.status !== 0) return null;
+  const revision = (result.stdout || "").trim();
+  return /^[0-9a-f]{40}$/u.test(revision) ? revision : null;
+}
+
 function gitAdd(repoRoot, files) {
   const result = spawnSync("git", ["-C", repoRoot, "add", "--", ...files], {
     encoding: "utf8",
@@ -430,6 +445,8 @@ function begin() {
     "utf8"
   );
   console.log(stagingDir);
+  const head = sourceHeadCommit(radiusDir);
+  if (head) console.error(`Source HEAD commit: ${head}`);
 }
 
 // --- publish ---------------------------------------------------------------

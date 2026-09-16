@@ -103,6 +103,18 @@ function begin(target: Repo, runId = "test-run"): string {
   return result.stdout;
 }
 
+it("reports the verified source HEAD without changing the staging-path output", () => {
+  const target = repo();
+  const result = run(target.root, ["--begin", "--run-id", "source-head"]);
+  expect(result.status).toBe(0);
+  expect(result.stdout).toBe(
+    path.join(target.radiusDir, ".staging-source-head")
+  );
+  expect(result.stderr).toBe(
+    `Source HEAD commit: ${git(target.root, ["rev-parse", "HEAD"])}`
+  );
+});
+
 function origin(model: string): string {
   return serializeAppOrigin({
     generatedAt: "2026-08-20T00:00:00.000Z",

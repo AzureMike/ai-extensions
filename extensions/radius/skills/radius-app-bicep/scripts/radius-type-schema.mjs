@@ -148,7 +148,17 @@ function normalizeProperty(property, types, active, context) {
   const flags = decodePropertyFlags(property.flags, context);
   const schema = normalizeTypeReference(property.type, types, active, context);
   if (!flags.readable) schema.writeOnly = true;
-  if (!flags.writable) schema.readOnly = true;
+  // A patch release can update the generated source before the supported
+  // major.minor Bicep-extension channel is republished. When the canonical
+  // contract itself says not to author a value, expose the safer intersection
+  // to the model so it cannot spend a compile repairing that publication lag.
+  if (
+    !flags.writable ||
+    (typeof property.description === "string" &&
+      /\bleave it unset\b/iu.test(property.description))
+  ) {
+    schema.readOnly = true;
+  }
   return { required: flags.required, schema };
 }
 

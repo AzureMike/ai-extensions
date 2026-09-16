@@ -218,6 +218,8 @@ If the Recipe declares `apiKey` in `result.secrets`, Radius injects it as secret
 
 Radius materializes Recipe `result.secrets` entries into a managed Kubernetes Secret and keeps `<producer>.properties.secrets.name` public as that Kubernetes Secret name. Use it only when the application requires an explicit custom environment name:
 
+The batched resolver lists this reserved path in `recipe.managedOutputPaths` when both the schema and inline Recipe prove it. It is synthesized by Radius, so it does not appear as a literal `secrets.name` in the Recipe module's `outputs` mapping.
+
 ```bicep
 APP_API_KEY: {
   valueFrom: {

@@ -65,6 +65,17 @@ describe("compact model-facing schemas", () => {
     });
   });
 
+  it("does not advertise a value the generated contract says to leave unset", () => {
+    const types = structuredClone(fixtureTypes);
+    types[10].properties.port.flags = 0;
+    types[10].properties.port.description =
+      "A Recipe reports the real port after deployment, so leave it unset.";
+
+    expect(
+      normalizer.buildSchema(types, 14).properties.properties.properties.port
+    ).toEqual({ type: "string", readOnly: true });
+  });
+
   it("returns maps, arrays, and canonical compute outputs", () => {
     const image = normalizer.buildSchema(fixtureTypes, 19);
     const imageProperties = image.properties.properties.properties;

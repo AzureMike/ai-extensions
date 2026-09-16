@@ -14,16 +14,16 @@ import {
   evaluateRepairAttempt,
   fingerprintCompilerOutput,
   isRepeatedFailure,
-  parseRepairState
+  parseRepairState,
 } from "@radius-project/core/modeling";
 import {
   githubSourceReferenceUrl,
-  srcPathFromRef
+  srcPathFromRef,
 } from "../../../src/browser/graph/model.js";
 
 const root = path.resolve(
   path.dirname(fileURLToPath(import.meta.url)),
-  "../../../../.."
+  "../../../../..",
 );
 const checker = path.join(
   root,
@@ -32,7 +32,7 @@ const checker = path.join(
   "skills",
   "radius-app-bicep",
   "scripts",
-  "validate-bicep.mjs"
+  "validate-bicep.mjs",
 );
 const executable = process.platform === "win32" ? "bicep.exe" : "bicep";
 const temporaryDirectories = new Set<string>();
@@ -86,7 +86,7 @@ const nodeExecutableHomeFs: ExecutableHomeFs = {
   },
   remove: (directory) => {
     fs.rmSync(directory, { recursive: true, force: true });
-  }
+  },
 };
 
 // The checker resolves the managed Bicep binary from the home directory but
@@ -97,7 +97,7 @@ const nodeExecutableHomeFs: ExecutableHomeFs = {
 // delete a file that size.
 function executableHome(
   source: string,
-  io: ExecutableHomeFs = nodeExecutableHomeFs
+  io: ExecutableHomeFs = nodeExecutableHomeFs,
 ): ExecutableHome {
   // The directory is tracked separately from the installed binary so a failed
   // installation is still cleaned up, while only a home that actually holds the
@@ -120,7 +120,7 @@ function executableHome(
       ".radius",
       "ai-extensions",
       "bin",
-      executable
+      executable,
     );
     io.mkdir(path.dirname(bicep));
     io.copyFile(source, bicep);
@@ -156,7 +156,7 @@ function executableHome(
       if (directory !== undefined) {
         io.remove(directory);
       }
-    }
+    },
   };
 }
 
@@ -205,7 +205,7 @@ function recordedHomeFs(failures: { mkdir?: number; copyFile?: number } = {}) {
     },
     remove(directory) {
       removed.push(directory);
-    }
+    },
   };
   return { io, created, attempted, installed, executables, removed };
 }
@@ -229,7 +229,7 @@ test("installs the shared stand-in binary once for repeated use", () => {
   assert.equal(home.path(), first);
   assert.deepEqual(created, [first]);
   assert.deepEqual(installed, [
-    path.join(first, ".radius", "ai-extensions", "bin", executable)
+    path.join(first, ".radius", "ai-extensions", "bin", executable),
   ]);
   assert.deepEqual(executables, installed);
 });
@@ -305,7 +305,7 @@ function fakeBicep(
   directory: string,
   compilerOutput: string,
   status: number,
-  compiledOutput = "{}"
+  compiledOutput = "{}",
 ): NodeJS.ProcessEnv {
   const home = sharedHome.path();
   const driver = path.join(directory, "build");
@@ -316,8 +316,8 @@ function fakeBicep(
       `process.stdout.write(${JSON.stringify(compiledOutput)});`,
       `process.stderr.write(${JSON.stringify(compilerOutput)});`,
       `process.exit(${status});`,
-      ""
-    ].join("\n")
+      "",
+    ].join("\n"),
   );
   return { HOME: home, USERPROFILE: home };
 }
@@ -327,7 +327,7 @@ function runChecker(directory: string, env: NodeJS.ProcessEnv, appSource = "") {
   fs.writeFileSync(app, appSource);
   return spawnSync(process.execPath, [checker, app], {
     encoding: "utf8",
-    env: { ...process.env, ...env }
+    env: { ...process.env, ...env },
   });
 }
 
@@ -340,8 +340,8 @@ function rerunChecker(directory: string, env: NodeJS.ProcessEnv) {
     [checker, path.join(directory, "app.bicep")],
     {
       encoding: "utf8",
-      env: { ...process.env, ...env }
-    }
+      env: { ...process.env, ...env },
+    },
   );
 }
 
@@ -361,7 +361,7 @@ function bicepFixture(name: string, file = "compiled.json"): string {
       name,
       file
     ),
-    "utf8"
+    "utf8",
   );
 }
 
@@ -387,33 +387,33 @@ function radiusResource<T extends object>(type: string, properties: T) {
   return {
     type,
     properties: {
-      properties: { codeReference: "src/resource.ts#L1", ...properties }
-    }
+      properties: { codeReference: "src/resource.ts#L1", ...properties },
+    },
   };
 }
 
 function imageResource(source: unknown) {
   return radiusResource(containerImageType, {
-    build: { source }
+    build: { source },
   });
 }
 
 function localModule(
   source: string,
   parameters: object = {},
-  parameterValues: object = {}
+  parameterValues: object = {},
 ) {
   return localModuleResources(
     { image: imageResource(source) },
     parameters,
-    parameterValues
+    parameterValues,
   );
 }
 
 function localModuleResources(
   resources: object,
   parameters: object = {},
-  parameterValues: object = {}
+  parameterValues: object = {},
 ) {
   return {
     type: "Microsoft.Resources/deployments",
@@ -421,9 +421,9 @@ function localModuleResources(
       parameters: parameterValues,
       template: {
         resources,
-        parameters
-      }
-    }
+        parameters,
+      },
+    },
   };
 }
 
@@ -444,17 +444,17 @@ test("fails when a non-application Radius resource has no durable source referen
   const compiledOutput = template({
     web: {
       type: "Radius.Compute/containers@2025-08-01-preview",
-      properties: { properties: {} }
+      properties: { properties: {} },
     },
     app: {
       type: "Radius.Core/applications@2025-08-01-preview",
-      properties: { properties: {} }
-    }
+      properties: { properties: {} },
+    },
   });
 
   const result = runChecker(
     directory,
-    fakeBicep(directory, sarif([]), 0, compiledOutput)
+    fakeBicep(directory, sarif([]), 0, compiledOutput),
   );
 
   assert.equal(result.status, 1);
@@ -468,19 +468,19 @@ test("explains how to update a custom type missing source-reference support", ()
   const compiledOutput = template({
     queue: {
       type: "Radius.Resources/queues@2025-08-01-preview",
-      properties: { properties: {} }
-    }
+      properties: { properties: {} },
+    },
   });
 
   const result = runChecker(
     directory,
-    fakeBicep(directory, sarif([]), 0, compiledOutput)
+    fakeBicep(directory, sarif([]), 0, compiledOutput),
   );
 
   assert.equal(result.status, 1);
   assert.match(
     result.stderr,
-    /add the optional codeReference string property/u
+    /add the optional codeReference string property/u,
   );
   assert.match(result.stderr, /republish custom-types\.tgz/u);
 });
@@ -499,18 +499,18 @@ test.each([
   "https://github.com/acme/app/blob/main/src/\napp.ts",
   " src/app.ts",
   "src/app.ts\nforged diagnostic",
-  "[concat('src/', 'app.ts')]"
+  "[concat('src/', 'app.ts')]",
 ])("fails for an unsafe source reference: %s", (codeReference) => {
   const directory = temporaryDirectory();
   const compiledOutput = template({
     web: radiusResource("Radius.Compute/containers@2025-08-01-preview", {
-      codeReference
-    })
+      codeReference,
+    }),
   });
 
   const result = runChecker(
     directory,
-    fakeBicep(directory, sarif([]), 0, compiledOutput)
+    fakeBicep(directory, sarif([]), 0, compiledOutput),
   );
 
   assert.equal(result.status, 1);
@@ -529,32 +529,93 @@ test.each([
   "src/app.ts",
   "src/app.ts#L12",
   "https://github.com/acme/app/blob/main/src/app.ts",
-  "https://github.com/acme/app/blob/feature/source-links/src/app.ts#L12"
+  "https://github.com/acme/app/blob/feature/source-links/src/app.ts#L12",
 ])("accepts a valid source reference: %s", (codeReference) => {
   const directory = temporaryDirectory();
   const compiledOutput = template({
     web: radiusResource("Radius.Compute/containers@2025-08-01-preview", {
-      codeReference
-    })
+      codeReference,
+    }),
   });
 
   const result = runChecker(
     directory,
-    fakeBicep(directory, sarif([]), 0, compiledOutput)
+    fakeBicep(directory, sarif([]), 0, compiledOutput),
   );
 
   assert.equal(result.status, 0);
   assert.equal(result.stderr, "");
   assert.ok(
-    githubSourceReferenceUrl(codeReference) || srcPathFromRef(codeReference)
+    githubSourceReferenceUrl(codeReference) || srcPathFromRef(codeReference),
   );
 });
 
 const containersType = "Radius.Compute/containers@2025-08-01-preview";
 
+function shellContainer(script: string) {
+  return radiusResource(containersType, {
+    containers: {
+      worker: {
+        command: ["/bin/sh", "-c"],
+        args: [script],
+      },
+    },
+  });
+}
+
+test("rejects a space-indented shell heredoc terminator from a compiled Bicep format", () => {
+  const directory = temporaryDirectory();
+  const script = "[format('  cat <<''EOF''\\n  body\\n  EOF\\n  exec worker\\n', reference('peer').properties.hosts.web)]";
+  const result = runChecker(
+    directory,
+    fakeBicep(directory, sarif([]), 0, template({ web: shellContainer(script) })),
+  );
+
+  assert.equal(result.status, 1);
+  assert.match(result.stderr, /indented-shell-heredoc/u);
+  assert.match(result.stderr, /web\.properties\.containers\.worker\.args\[0\]/u);
+  assert.match(result.stderr, /closing EOF on script line 3/u);
+});
+
+test.each([
+  "cat <<'EOF'\nbody\nEOF\nexec worker\n",
+  "cat <<-EOF\n\tbody\n\tEOF\nexec worker\n",
+  "[format('cat <<''EOF''\\nbody\\nEOF\\nexec worker\\n', reference('peer').properties.hosts.web)]",
+])("accepts a correctly terminated shell heredoc: %s", (script) => {
+  const directory = temporaryDirectory();
+  const result = runChecker(
+    directory,
+    fakeBicep(directory, sarif([]), 0, template({ web: shellContainer(script) })),
+  );
+
+  assert.equal(result.status, 0);
+  assert.equal(result.stderr, "");
+});
+
+test("does not interpret an argument as a shell script for a non-shell command", () => {
+  const directory = temporaryDirectory();
+  const compiledOutput = template({
+    web: radiusResource(containersType, {
+      containers: {
+        worker: {
+          command: ["/usr/bin/node", "-e"],
+          args: ["const text = `cat <<EOF\\n  EOF`;"],
+        },
+      },
+    }),
+  });
+  const result = runChecker(
+    directory,
+    fakeBicep(directory, sarif([]), 0, compiledOutput),
+  );
+
+  assert.equal(result.status, 0);
+  assert.equal(result.stderr, "");
+});
+
 function containerEnv(env: object, containerKey = "web") {
   return radiusResource(containersType, {
-    containers: { [containerKey]: { env } }
+    containers: { [containerKey]: { env } },
   });
 }
 
@@ -830,20 +891,27 @@ describe("managed Secret connection sources", () => {
   });
 });
 
+function namedContainer(name: string, env: object, containerKey = "web") {
+  return {
+    ...containerEnv(env, containerKey),
+    name,
+  };
+}
+
 test("fails when a plain value reads a plain helper that does not sort before it", () => {
   const directory = temporaryDirectory();
   const compiledOutput = template({
     web: containerEnv({
       APP_DATABASE_OPTIONS: {
-        value: "host=db;password=$(DB_PASSWORD)"
+        value: "host=db;password=$(DB_PASSWORD)",
       },
-      DB_PASSWORD: { value: "secret" }
-    })
+      DB_PASSWORD: { value: "secret" },
+    }),
   });
 
   const result = runChecker(
     directory,
-    fakeBicep(directory, sarif([]), 0, compiledOutput)
+    fakeBicep(directory, sarif([]), 0, compiledOutput),
   );
 
   assert.equal(result.status, 1);
@@ -855,7 +923,7 @@ test("fails when a plain value reads a plain helper that does not sort before it
   assert.match(result.stderr, /compatible Kubernetes Secret connection/u);
   assert.match(
     result.stderr,
-    /explicit schema-supported or legacy @secure\(\) env\.value fallback/u
+    /explicit schema-supported or legacy @secure\(\) env\.value fallback/u,
   );
   assert.doesNotMatch(result.stderr, /has to stay a plain value/u);
 });
@@ -866,14 +934,14 @@ test("accepts a plain helper whose key sorts before its consumer", () => {
     web: containerEnv({
       APP_DATABASE_CREDENTIAL: { value: "secret" },
       APP_DATABASE_OPTIONS: {
-        value: "host=db;password=$(APP_DATABASE_CREDENTIAL)"
-      }
-    })
+        value: "host=db;password=$(APP_DATABASE_CREDENTIAL)",
+      },
+    }),
   });
 
   const result = runChecker(
     directory,
-    fakeBicep(directory, sarif([]), 0, compiledOutput)
+    fakeBicep(directory, sarif([]), 0, compiledOutput),
   );
 
   assert.equal(result.status, 0);
@@ -885,19 +953,82 @@ test("accepts a secretKeyRef helper regardless of its key", () => {
   const compiledOutput = template({
     web: containerEnv({
       APP_DATABASE_OPTIONS: {
-        value: "host=db;password=$(ZZ_PASSWORD)"
+        value: "host=db;password=$(ZZ_PASSWORD)",
       },
       ZZ_PASSWORD: {
         valueFrom: {
-          secretKeyRef: { secretName: "db-secret", key: "password" }
-        }
-      }
-    })
+          secretKeyRef: { secretName: "db-secret", key: "password" },
+        },
+      },
+    }),
   });
 
   const result = runChecker(
     directory,
-    fakeBicep(directory, sarif([]), 0, compiledOutput)
+    fakeBicep(directory, sarif([]), 0, compiledOutput),
+  );
+
+  assert.equal(result.status, 0);
+  assert.equal(result.stderr, "");
+});
+
+test("rejects a compiled Radius managed Secret name at the resource root", () => {
+  const directory = temporaryDirectory();
+  const compiledOutput = template({
+    mongoDb: radiusResource("Radius.Data/mongoDatabases@2025-08-01-preview", {
+      database: "orders",
+    }),
+    web: containerEnv({
+      DATABASE_URL: {
+        valueFrom: {
+          secretKeyRef: {
+            secretName: "[reference('mongoDb').secrets.name]",
+            key: "connectionString",
+          },
+        },
+      },
+    }),
+  });
+
+  const result = runChecker(
+    directory,
+    fakeBicep(directory, sarif([]), 0, compiledOutput),
+  );
+
+  assert.equal(result.status, 1);
+  assert.match(result.stderr, /misplaced-radius-secret-name/u);
+  assert.match(
+    result.stderr,
+    /web\.properties\.containers\.web\.env\.DATABASE_URL/u,
+  );
+  assert.match(result.stderr, /mongoDb\.properties\.secrets\.name/u);
+});
+
+test.each([
+  [
+    "Radius property envelope",
+    "[reference('mongoDb').properties.secrets.name]",
+    "Radius.Data/mongoDatabases@2025-08-01-preview",
+  ],
+  [
+    "other provider root",
+    "[reference('mongoDb').secrets.name]",
+    "Other.Data/databases@2025-08-01-preview",
+  ],
+])("accepts a %s managed Secret expression", (_label, secretName, type) => {
+  const directory = temporaryDirectory();
+  const compiledOutput = template({
+    mongoDb: radiusResource(type, { database: "orders" }),
+    web: containerEnv({
+      DATABASE_URL: {
+        valueFrom: { secretKeyRef: { secretName, key: "connectionString" } },
+      },
+    }),
+  });
+
+  const result = runChecker(
+    directory,
+    fakeBicep(directory, sarif([]), 0, compiledOutput),
   );
 
   assert.equal(result.status, 0);
@@ -1162,19 +1293,19 @@ describe("aggregate Recipe secret aliases", () => {
 
 test.each([
   ["a dotted name", "DB.PASSWORD"],
-  ["a hyphenated name", "DB-PASSWORD"]
+  ["a hyphenated name", "DB-PASSWORD"],
 ])("reports %s that the kubelet would still look up", (_label, helper) => {
   const directory = temporaryDirectory();
   const compiledOutput = template({
     web: containerEnv({
       APP_DATABASE_OPTIONS: { value: `password=$(${helper})` },
-      [helper]: { value: "secret" }
-    })
+      [helper]: { value: "secret" },
+    }),
   });
 
   const result = runChecker(
     directory,
-    fakeBicep(directory, sarif([]), 0, compiledOutput)
+    fakeBicep(directory, sarif([]), 0, compiledOutput),
   );
 
   assert.equal(result.status, 1);
@@ -1186,15 +1317,15 @@ test("reports a repeated reference once", () => {
   const compiledOutput = template({
     web: containerEnv({
       APP_DATABASE_OPTIONS: {
-        value: "primary=$(DB_PASSWORD);replica=$(DB_PASSWORD)"
+        value: "primary=$(DB_PASSWORD);replica=$(DB_PASSWORD)",
       },
-      DB_PASSWORD: { value: "secret" }
-    })
+      DB_PASSWORD: { value: "secret" },
+    }),
   });
 
   const result = runChecker(
     directory,
-    fakeBicep(directory, sarif([]), 0, compiledOutput)
+    fakeBicep(directory, sarif([]), 0, compiledOutput),
   );
 
   assert.equal(result.status, 1);
@@ -1205,28 +1336,127 @@ test("ignores a name this container's env does not define", () => {
   const directory = temporaryDirectory();
   const compiledOutput = template({
     web: containerEnv({
-      APP_ENDPOINT: { value: "http://$(CONNECTION_DB_HOST):5432" }
-    })
+      APP_ENDPOINT: { value: "http://$(CONNECTION_DB_HOST):5432" },
+    }),
   });
 
   const result = runChecker(
     directory,
-    fakeBicep(directory, sarif([]), 0, compiledOutput)
+    fakeBicep(directory, sarif([]), 0, compiledOutput),
   );
 
   assert.equal(result.status, 0);
   assert.equal(result.stderr, "");
 });
 
-test("reports a variable that reads itself", () => {
+test("fails when a literal cluster-local URI names no modeled peer", () => {
   const directory = temporaryDirectory();
   const compiledOutput = template({
-    web: containerEnv({ APP_PATH: { value: "$(APP_PATH):/extra" } })
+    product: namedContainer("product", {
+      AI_SERVICE_URL: { value: "http://ai-service:5001/" },
+    }),
   });
 
   const result = runChecker(
     directory,
-    fakeBicep(directory, sarif([]), 0, compiledOutput)
+    fakeBicep(directory, sarif([]), 0, compiledOutput),
+  );
+
+  assert.equal(result.status, 1);
+  assert.match(result.stderr, /unmodeled-runtime-peer/u);
+  assert.match(result.stderr, /literal URI host "ai-service"/u);
+  assert.match(result.stderr, /product\.properties\.containers\.web\.env/u);
+});
+
+test("accepts a literal cluster-local URI backed by a named Radius resource", () => {
+  const directory = temporaryDirectory();
+  const compiledOutput = template({
+    ai: namedContainer("ai-service", {}),
+    product: namedContainer("product", {
+      AI_SERVICE_URL: { value: "http://ai-service:5001/" },
+    }),
+  });
+
+  const result = runChecker(
+    directory,
+    fakeBicep(directory, sarif([]), 0, compiledOutput),
+  );
+
+  assert.equal(result.status, 0);
+  assert.equal(result.stderr, "");
+});
+
+test("accepts a literal URI backed by a container service alias", () => {
+  const directory = temporaryDirectory();
+  const compiledOutput = template({
+    order: namedContainer("order", {}, "service"),
+    worker: namedContainer("worker", {
+      ORDER_URL: { value: "http://order-service:3000/" },
+    }),
+  });
+
+  const result = runChecker(
+    directory,
+    fakeBicep(directory, sarif([]), 0, compiledOutput),
+  );
+
+  assert.equal(result.status, 0);
+  assert.equal(result.stderr, "");
+});
+
+test.each([
+  "https://api.example.com/v1",
+  "http://localhost:4000/health",
+  "[format('http://{0}:4000/', reference('backend').outputs.host.value)]",
+])(
+  "accepts a runtime URI that is not an unresolved cluster peer: %s",
+  (url) => {
+    const directory = temporaryDirectory();
+    const compiledOutput = template({
+      web: namedContainer("web", { API_URL: { value: url } }),
+    });
+
+    const result = runChecker(
+      directory,
+      fakeBicep(directory, sarif([]), 0, compiledOutput),
+    );
+
+    assert.equal(result.status, 0);
+    assert.equal(result.stderr, "");
+  },
+);
+
+test("reports an unmodeled URI embedded in container arguments", () => {
+  const directory = temporaryDirectory();
+  const compiledOutput = template({
+    web: radiusResource(containersType, {
+      containers: {
+        web: {
+          args: ["--upstream=http://missing-peer:8080/"],
+        },
+      },
+    }),
+  });
+
+  const result = runChecker(
+    directory,
+    fakeBicep(directory, sarif([]), 0, compiledOutput),
+  );
+
+  assert.equal(result.status, 1);
+  assert.match(result.stderr, /unmodeled-runtime-peer/u);
+  assert.match(result.stderr, /\.args\[0\]/u);
+});
+
+test("reports a variable that reads itself", () => {
+  const directory = temporaryDirectory();
+  const compiledOutput = template({
+    web: containerEnv({ APP_PATH: { value: "$(APP_PATH):/extra" } }),
+  });
+
+  const result = runChecker(
+    directory,
+    fakeBicep(directory, sarif([]), 0, compiledOutput),
   );
 
   assert.equal(result.status, 1);
@@ -1238,13 +1468,13 @@ test("treats an escaped $$(NAME) as literal text", () => {
   const compiledOutput = template({
     web: containerEnv({
       APP_TEMPLATE: { value: "literal $$(DB_PASSWORD)" },
-      DB_PASSWORD: { value: "secret" }
-    })
+      DB_PASSWORD: { value: "secret" },
+    }),
   });
 
   const result = runChecker(
     directory,
-    fakeBicep(directory, sarif([]), 0, compiledOutput)
+    fakeBicep(directory, sarif([]), 0, compiledOutput),
   );
 
   assert.equal(result.status, 0);
@@ -1257,20 +1487,20 @@ test("reports an unresolved expansion inside a nested module", () => {
     stack: localModuleResources({
       web: containerEnv({
         APP_DATABASE_OPTIONS: { value: "password=$(DB_PASSWORD)" },
-        DB_PASSWORD: { value: "secret" }
-      })
-    })
+        DB_PASSWORD: { value: "secret" },
+      }),
+    }),
   });
 
   const result = runChecker(
     directory,
-    fakeBicep(directory, sarif([]), 0, compiledOutput)
+    fakeBicep(directory, sarif([]), 0, compiledOutput),
   );
 
   assert.equal(result.status, 1);
   assert.match(
     result.stderr,
-    /stack\.web\.properties\.containers\.web\.env\./u
+    /stack\.web\.properties\.containers\.web\.env\./u,
   );
 });
 
@@ -1280,15 +1510,15 @@ test("reports an unresolved expansion in a value supplied by a parameter default
     {
       web: containerEnv({
         APP_DATABASE_OPTIONS: { value: "[parameters('options')]" },
-        DB_PASSWORD: { value: "secret" }
-      })
+        DB_PASSWORD: { value: "secret" },
+      }),
     },
-    { options: { type: "string", defaultValue: "password=$(DB_PASSWORD)" } }
+    { options: { type: "string", defaultValue: "password=$(DB_PASSWORD)" } },
   );
 
   const result = runChecker(
     directory,
-    fakeBicep(directory, sarif([]), 0, compiledOutput)
+    fakeBicep(directory, sarif([]), 0, compiledOutput),
   );
 
   assert.equal(result.status, 1);
@@ -1303,13 +1533,13 @@ test("stays silent when letter case decides the ordering", () => {
   const compiledOutput = template({
     web: containerEnv({
       APP_OPTIONS: { value: "password=$(APP_credential)" },
-      APP_credential: { value: "secret" }
-    })
+      APP_credential: { value: "secret" },
+    }),
   });
 
   const result = runChecker(
     directory,
-    fakeBicep(directory, sarif([]), 0, compiledOutput)
+    fakeBicep(directory, sarif([]), 0, compiledOutput),
   );
 
   assert.equal(result.status, 0);
@@ -1321,13 +1551,13 @@ test("reports a lowercase helper that sorts after under every comparison", () =>
   const compiledOutput = template({
     web: containerEnv({
       APP_DATABASE_OPTIONS: { value: "password=$(app_password)" },
-      app_password: { value: "secret" }
-    })
+      app_password: { value: "secret" },
+    }),
   });
 
   const result = runChecker(
     directory,
-    fakeBicep(directory, sarif([]), 0, compiledOutput)
+    fakeBicep(directory, sarif([]), 0, compiledOutput),
   );
 
   assert.equal(result.status, 1);
@@ -1339,20 +1569,20 @@ test("resolves a top-level source-reference parameter default", () => {
   const compiledOutput = template(
     {
       web: radiusResource("Radius.Compute/containers@2025-08-01-preview", {
-        codeReference: "[parameters('sourceReference')]"
-      })
+        codeReference: "[parameters('sourceReference')]",
+      }),
     },
     {
       sourceReference: {
         type: "string",
-        defaultValue: "src/app.ts#L12"
-      }
-    }
+        defaultValue: "src/app.ts#L12",
+      },
+    },
   );
 
   const result = runChecker(
     directory,
-    fakeBicep(directory, sarif([]), 0, compiledOutput)
+    fakeBicep(directory, sarif([]), 0, compiledOutput),
   );
 
   assert.equal(result.status, 0);
@@ -1364,15 +1594,15 @@ test("rejects an unresolved top-level source-reference expression", () => {
   const compiledOutput = template(
     {
       web: radiusResource("Radius.Compute/containers@2025-08-01-preview", {
-        codeReference: "[parameters('sourceReference')]"
-      })
+        codeReference: "[parameters('sourceReference')]",
+      }),
     },
-    { sourceReference: { type: "string" } }
+    { sourceReference: { type: "string" } },
   );
 
   const result = runChecker(
     directory,
-    fakeBicep(directory, sarif([]), 0, compiledOutput)
+    fakeBicep(directory, sarif([]), 0, compiledOutput),
   );
 
   assert.equal(result.status, 1);
@@ -1385,17 +1615,17 @@ test("resolves source-reference parameters through local module invocations", ()
     module: localModuleResources(
       {
         queue: radiusResource("Radius.Messaging/rabbitMQ@2025-08-01-preview", {
-          codeReference: "[parameters('sourceReference')]"
-        })
+          codeReference: "[parameters('sourceReference')]",
+        }),
       },
       { sourceReference: { type: "string" } },
-      { sourceReference: { value: "src/queue.ts#L4" } }
-    )
+      { sourceReference: { value: "src/queue.ts#L4" } },
+    ),
   });
 
   const result = runChecker(
     directory,
-    fakeBicep(directory, sarif([]), 0, compiledOutput)
+    fakeBicep(directory, sarif([]), 0, compiledOutput),
   );
 
   assert.equal(result.status, 0);
@@ -1408,14 +1638,14 @@ test("checks source references inside local modules", () => {
     module: localModuleResources({
       queue: {
         type: "Radius.Messaging/rabbitMQ@2025-08-01-preview",
-        properties: { properties: {} }
-      }
-    })
+        properties: { properties: {} },
+      },
+    }),
   });
 
   const result = runChecker(
     directory,
-    fakeBicep(directory, sarif([]), 0, compiledOutput)
+    fakeBicep(directory, sarif([]), 0, compiledOutput),
   );
 
   assert.equal(result.status, 1);
@@ -1436,26 +1666,26 @@ test.each([
   "https://github.com/acme/app/blob/main/services/api/Dockerfile",
   "https://github.com/acme/app/blob/main/Docker%66ile",
   "https://github.com/acme/app/blob/main/services/api/docker-compose%2Eyml",
-  "https://github.com/acme/app/blob/main/bad%ZZdir/Dockerfile"
+  "https://github.com/acme/app/blob/main/bad%ZZdir/Dockerfile",
 ])(
   "rejects a packaging file as a container source reference: %s",
   (codeReference) => {
     const directory = temporaryDirectory();
     const compiledOutput = template({
       web: radiusResource("Radius.Compute/containers@2025-08-01-preview", {
-        codeReference
-      })
+        codeReference,
+      }),
     });
 
     const result = runChecker(
       directory,
-      fakeBicep(directory, sarif([]), 0, compiledOutput)
+      fakeBicep(directory, sarif([]), 0, compiledOutput),
     );
 
     assert.equal(result.status, 1);
     assert.match(result.stderr, /is a packaging file/u);
     assert.match(result.stderr, /web\.properties\.codeReference/u);
-  }
+  },
 );
 
 test("accepts the Dockerfile a containerImages resource builds from", () => {
@@ -1465,15 +1695,15 @@ test("accepts the Dockerfile a containerImages resource builds from", () => {
   const compiledOutput = template({
     image: radiusResource(containerImageType, {
       build: {
-        source: `git::https://github.com/example/app.git?ref=${fullSha}`
+        source: `git::https://github.com/example/app.git?ref=${fullSha}`,
       },
-      codeReference: "services/api/Dockerfile"
-    })
+      codeReference: "services/api/Dockerfile",
+    }),
   });
 
   const result = runChecker(
     directory,
-    fakeBicep(directory, sarif([]), 0, compiledOutput)
+    fakeBicep(directory, sarif([]), 0, compiledOutput),
   );
 
   assert.equal(result.status, 0);
@@ -1484,25 +1714,25 @@ test.each([
   "src/server.ts",
   "cmd/api/main.go#L12",
   "src/dockerfile-generator.ts",
-  "src/compose-loader.ts"
+  "src/compose-loader.ts",
 ])(
   "accepts a container entrypoint that is not a packaging file: %s",
   (codeReference) => {
     const directory = temporaryDirectory();
     const compiledOutput = template({
       web: radiusResource("Radius.Compute/containers@2025-08-01-preview", {
-        codeReference
-      })
+        codeReference,
+      }),
     });
 
     const result = runChecker(
       directory,
-      fakeBicep(directory, sarif([]), 0, compiledOutput)
+      fakeBicep(directory, sarif([]), 0, compiledOutput),
     );
 
     assert.equal(result.status, 0);
     assert.equal(result.stderr, "");
-  }
+  },
 );
 
 test("fails and surfaces a Bicep warning even when Bicep exits successfully", () => {
@@ -1519,20 +1749,20 @@ test("fails and surfaces a Bicep warning even when Bicep exits successfully", ()
             {
               physicalLocation: {
                 artifactLocation: { uri: "file:///tmp/app.bicep" },
-                region: { startLine: 12 }
-              }
-            }
-          ]
-        }
+                region: { startLine: 12 },
+              },
+            },
+          ],
+        },
       ]),
-      0
-    )
+      0,
+    ),
   );
 
   assert.equal(result.status, 1);
   assert.match(
     result.stderr,
-    /app\.bicep:12: warning use-secure-value-for-secure-inputs: Property 'password' expects a secure value\./u
+    /app\.bicep:12: warning use-secure-value-for-secure-inputs: Property 'password' expects a secure value\./u,
   );
 });
 
@@ -1546,19 +1776,19 @@ test("adds custom-type repair guidance to a codeReference BCP037 diagnostic", ()
         {
           ruleId: "BCP037",
           message: {
-            text: 'The property "codeReference" is not allowed on objects of type "properties".'
+            text: 'The property "codeReference" is not allowed on objects of type "properties".',
           },
-          level: "error"
-        }
+          level: "error",
+        },
       ]),
-      1
-    )
+      1,
+    ),
   );
 
   assert.equal(result.status, 1);
   assert.match(
     result.stderr,
-    /add the optional codeReference string property/u
+    /add the optional codeReference string property/u,
   );
   assert.match(result.stderr, /republish custom-types\.tgz/u);
 });
@@ -1577,19 +1807,19 @@ test("tells a sensitive property's diagnostic to use a @secure() parameter", () 
         {
           ruleId: "use-secure-value-for-secure-inputs",
           message: {
-            text: "Property 'password' expects a secure value, but the value provided may not be secure."
-          }
-        }
+            text: "Property 'password' expects a secure value, but the value provided may not be secure.",
+          },
+        },
       ]),
-      0
-    )
+      0,
+    ),
   );
 
   assert.equal(result.status, 1);
   assert.match(result.stderr, /compiled type marks this property secure/u);
   assert.match(
     result.stderr,
-    /takes the value of a @secure\(\) parameter referenced by name/u
+    /takes the value of a @secure\(\) parameter referenced by name/u,
   );
   assert.match(result.stderr, /any string interpolation/u);
 });
@@ -1604,12 +1834,12 @@ test("tells a credential-named parameter to carry the @secure() decorator", () =
         {
           ruleId: "secure-secrets-in-params",
           message: {
-            text: "Parameter 'dbPassword' may represent a secret (according to its name) and must be declared with the @secure() decorator."
-          }
-        }
+            text: "Parameter 'dbPassword' may represent a secret (according to its name) and must be declared with the @secure() decorator.",
+          },
+        },
       ]),
-      0
-    )
+      0,
+    ),
   );
 
   assert.equal(result.status, 1);
@@ -1628,19 +1858,19 @@ test("tells a secure parameter with a default to drop the default", () => {
         {
           ruleId: "secure-parameter-default",
           message: {
-            text: "Secure parameters should not have hardcoded defaults (except for empty or newGuid())."
-          }
-        }
+            text: "Secure parameters should not have hardcoded defaults (except for empty or newGuid()).",
+          },
+        },
       ]),
-      0
-    )
+      0,
+    ),
   );
 
   assert.equal(result.status, 1);
   assert.match(result.stderr, /Remove the default value/u);
   assert.match(
     result.stderr,
-    /would commit the credential to the application definition/u
+    /would commit the credential to the application definition/u,
   );
 });
 
@@ -1657,13 +1887,13 @@ test("adds no secure-value remedy to an unrelated diagnostic", () => {
         {
           ruleId: "BCP035",
           message: {
-            text: 'The specified "object" declaration is missing the following required properties: "environment".'
+            text: 'The specified "object" declaration is missing the following required properties: "environment".',
           },
-          level: "error"
-        }
+          level: "error",
+        },
       ]),
-      1
-    )
+      1,
+    ),
   );
 
   assert.equal(result.status, 1);
@@ -1684,13 +1914,13 @@ test("adds no custom-type remedy to a BCP037 about another property", () => {
         {
           ruleId: "BCP037",
           message: {
-            text: 'The property "unexpected" is not allowed on objects of type "properties".'
+            text: 'The property "unexpected" is not allowed on objects of type "properties".',
           },
-          level: "error"
-        }
+          level: "error",
+        },
       ]),
-      1
-    )
+      1,
+    ),
   );
 
   assert.equal(result.status, 1);
@@ -1765,8 +1995,8 @@ test("accepts a Markdown-backed informational diagnostic without inline text", (
           message: { markdown: "Compiler note." }
         }
       ]),
-      0
-    )
+      0,
+    ),
   );
 
   assert.equal(result.status, 0);
@@ -1820,17 +2050,17 @@ test("preserves a Bicep compiler failure", () => {
         {
           level: "error",
           ruleId: "BCP007",
-          message: { text: "This declaration type is not recognized." }
-        }
+          message: { text: "This declaration type is not recognized." },
+        },
       ]),
-      1
-    )
+      1,
+    ),
   );
 
   assert.equal(result.status, 1);
   assert.match(
     result.stderr,
-    /error BCP007: This declaration type is not recognized\./u
+    /error BCP007: This declaration type is not recognized\./u,
   );
 });
 
@@ -1912,7 +2142,7 @@ test("fails closed when Bicep diagnostics are not valid SARIF", () => {
   const directory = temporaryDirectory();
   const result = runChecker(
     directory,
-    fakeBicep(directory, "warning: boom", 0)
+    fakeBicep(directory, "warning: boom", 0),
   );
 
   assert.equal(result.status, 2);
@@ -1936,7 +2166,7 @@ it.each([
   { name: "a null run", output: JSON.stringify({ runs: [null] }) },
   {
     name: "non-array results",
-    output: JSON.stringify({ runs: [{ results: {} }] })
+    output: JSON.stringify({ runs: [{ results: {} }] }),
   },
   {
     name: "null results",
@@ -1944,8 +2174,8 @@ it.each([
   },
   {
     name: "a null result",
-    output: JSON.stringify({ runs: [{ results: [null] }] })
-  }
+    output: JSON.stringify({ runs: [{ results: [null] }] }),
+  },
 ])("fails closed for SARIF with $name", ({ output }) => {
   const directory = temporaryDirectory();
   const result = runChecker(directory, fakeBicep(directory, output, 0));
@@ -2026,7 +2256,7 @@ test("reports the fallback when Bicep returns no diagnostics output", () => {
   assert.equal(result.status, 2);
   assert.equal(
     result.stderr,
-    "Bicep did not return valid SARIF diagnostics.\n"
+    "Bicep did not return valid SARIF diagnostics.\n",
   );
 });
 
@@ -2043,23 +2273,23 @@ test("combines diagnostics from every SARIF run", () => {
               {
                 level: "note",
                 ruleId: "first-run",
-                message: { text: "First run note." }
-              }
-            ]
+                message: { text: "First run note." },
+              },
+            ],
           },
           {
             results: [
               {
                 level: "error",
                 ruleId: "second-run",
-                message: { text: "Second run error." }
-              }
-            ]
-          }
-        ]
+                message: { text: "Second run error." },
+              },
+            ],
+          },
+        ],
       }),
-      0
-    )
+      0,
+    ),
   );
 
   assert.equal(result.status, 1);
@@ -2072,7 +2302,7 @@ test("ignores Bicep overrides and PATH", () => {
   const result = runChecker(directory, {
     ...fakeBicep(directory, sarif([]), 0),
     BICEP_BINARY: path.join(directory, "other-bicep"),
-    PATH: ""
+    PATH: "",
   });
 
   assert.equal(result.status, 0);
@@ -2083,7 +2313,7 @@ test("fails closed when compiled output is not valid JSON", () => {
   const directory = temporaryDirectory();
   const result = runChecker(
     directory,
-    fakeBicep(directory, sarif([]), 0, "not json")
+    fakeBicep(directory, sarif([]), 0, "not json"),
   );
 
   assert.equal(result.status, 2);
@@ -2124,12 +2354,12 @@ it.each([
   { name: "null", output: "null" },
   { name: "an array", output: "[]" },
   { name: "a number", output: "42" },
-  { name: "a string", output: JSON.stringify("template") }
+  { name: "a string", output: JSON.stringify("template") },
 ])("fails closed when compiled output is $name", ({ output }) => {
   const directory = temporaryDirectory();
   const result = runChecker(
     directory,
-    fakeBicep(directory, sarif([]), 0, output)
+    fakeBicep(directory, sarif([]), 0, output),
   );
 
   assert.equal(result.status, 2);
@@ -2141,7 +2371,7 @@ test("fails closed when the managed Bicep executable is missing", () => {
   const missingHome = path.join(directory, "missing-home");
   const result = runChecker(directory, {
     HOME: missingHome,
-    USERPROFILE: missingHome
+    USERPROFILE: missingHome,
   });
 
   assert.equal(result.status, 2);
@@ -2152,59 +2382,59 @@ it.each([
   {
     name: "an abbreviated SHA",
     source: "git::https://github.com/example/app.git?ref=eb33f12",
-    ref: "eb33f12"
+    ref: "eb33f12",
   },
   {
     name: "a numeric seven-character SHA",
     source: "git::https://github.com/example/app.git?ref=5568077",
-    ref: "5568077"
+    ref: "5568077",
   },
   {
     name: "an uppercase abbreviated SHA",
     source: "git::https://github.com/example/app.git?ref=EB33F12",
-    ref: "EB33F12"
+    ref: "EB33F12",
   },
   {
     name: "an eight-character hexadecimal SHA",
     source: "git::https://github.com/example/app.git?ref=deadbeef",
-    ref: "deadbeef"
+    ref: "deadbeef",
   },
   {
     name: "an ambiguous seven-character hexadecimal ref",
     source: "git::https://github.com/example/app.git?ref=deadbee",
-    ref: "deadbee"
+    ref: "deadbee",
   },
   {
     name: "an abbreviated SHA after another query parameter",
     source: "git::https://github.com/example/app.git?context=src&ref=eb33f12",
-    ref: "eb33f12"
+    ref: "eb33f12",
   },
   {
     name: "an abbreviated SHA before a URL fragment",
     source: "git::https://github.com/example/app.git?ref=eb33f12#readme",
-    ref: "eb33f12"
+    ref: "eb33f12",
   },
   {
     name: "a percent-encoded abbreviated SHA",
     source: "git::https://github.com/example/app.git?ref=%65b33f12",
-    ref: "eb33f12"
+    ref: "eb33f12",
   },
   {
     name: "the first of two refs when it is an abbreviated SHA",
     source: `git::https://github.com/example/app.git?ref=eb33f12&ref=${fullSha}`,
-    ref: "eb33f12"
+    ref: "eb33f12",
   },
   {
     name: "a 39-character SHA",
     source: `git::https://github.com/example/app.git?ref=${"a".repeat(39)}`,
-    ref: "a".repeat(39)
-  }
+    ref: "a".repeat(39),
+  },
 ])("rejects a container image build source with $name", ({ source, ref }) => {
   const directory = temporaryDirectory();
   const compiledOutput = template({ image: imageResource(source) });
   const result = runChecker(
     directory,
-    fakeBicep(directory, sarif([]), 0, compiledOutput)
+    fakeBicep(directory, sarif([]), 0, compiledOutput),
   );
 
   assert.equal(result.status, 1);
@@ -2215,74 +2445,74 @@ it.each([
 it.each([
   {
     name: "a source without a ref",
-    source: "git::https://github.com/example/app.git"
+    source: "git::https://github.com/example/app.git",
   },
   {
     name: "a source with other query parameters but no ref",
-    source: "git::https://github.com/example/app.git?context=src"
+    source: "git::https://github.com/example/app.git?context=src",
   },
   {
     name: "an empty ref",
-    source: "git::https://github.com/example/app.git?ref="
+    source: "git::https://github.com/example/app.git?ref=",
   },
   {
     name: "a branch",
-    source: "git::https://github.com/example/app.git?ref=main"
+    source: "git::https://github.com/example/app.git?ref=main",
   },
   {
     name: "a bare release tag",
-    source: "git::https://github.com/example/app.git?ref=v1.2.3"
+    source: "git::https://github.com/example/app.git?ref=v1.2.3",
   },
   {
     name: "an explicit release tag with a hexadecimal name",
-    source: "git::https://github.com/example/app.git?ref=refs/tags/deadbee"
+    source: "git::https://github.com/example/app.git?ref=refs/tags/deadbee",
   },
   {
     name: "an explicit branch with a hexadecimal name",
-    source: "git::https://github.com/example/app.git?ref=refs/heads/deadbee"
+    source: "git::https://github.com/example/app.git?ref=refs/heads/deadbee",
   },
   {
     name: "a percent-encoded explicit tag",
-    source: "git::https://github.com/example/app.git?ref=refs%2Ftags%2Fdeadbee"
+    source: "git::https://github.com/example/app.git?ref=refs%2Ftags%2Fdeadbee",
   },
   {
     name: "an eight-digit date tag",
-    source: "git::https://github.com/example/app.git?ref=20240817"
+    source: "git::https://github.com/example/app.git?ref=20240817",
   },
   {
     name: "a nine-digit numeric tag",
-    source: "git::https://github.com/example/app.git?ref=123456789"
+    source: "git::https://github.com/example/app.git?ref=123456789",
   },
   {
     name: "a six-character hexadecimal ref",
-    source: "git::https://github.com/example/app.git?ref=abc123"
+    source: "git::https://github.com/example/app.git?ref=abc123",
   },
   {
     name: "the hexadecimal ref cafe",
-    source: "git::https://github.com/example/app.git?ref=cafe"
+    source: "git::https://github.com/example/app.git?ref=cafe",
   },
   {
     name: "the hexadecimal ref beef",
-    source: "git::https://github.com/example/app.git?ref=beef"
+    source: "git::https://github.com/example/app.git?ref=beef",
   },
   {
     name: "the hexadecimal ref added",
-    source: "git::https://github.com/example/app.git?ref=added"
+    source: "git::https://github.com/example/app.git?ref=added",
   },
   {
     name: "the hexadecimal ref facade",
-    source: "git::https://github.com/example/app.git?ref=facade"
+    source: "git::https://github.com/example/app.git?ref=facade",
   },
   {
     name: "a full 40-character SHA",
-    source: `git::https://github.com/example/app.git?ref=${fullSha}`
-  }
+    source: `git::https://github.com/example/app.git?ref=${fullSha}`,
+  },
 ])("accepts $name", ({ source }) => {
   const directory = temporaryDirectory();
   const compiledOutput = template({ image: imageResource(source) });
   const result = runChecker(
     directory,
-    fakeBicep(directory, sarif([]), 0, compiledOutput)
+    fakeBicep(directory, sarif([]), 0, compiledOutput),
   );
 
   assert.equal(result.status, 0);
@@ -2293,15 +2523,15 @@ test("checks every container image build source", () => {
   const directory = temporaryDirectory();
   const compiledOutput = template({
     goodImage: imageResource(
-      "git::https://github.com/example/good.git?ref=refs/tags/v1.2.3"
+      "git::https://github.com/example/good.git?ref=refs/tags/v1.2.3",
     ),
     badImage: imageResource(
-      "git::https://github.com/example/bad.git?ref=eb33f12"
-    )
+      "git::https://github.com/example/bad.git?ref=eb33f12",
+    ),
   });
   const result = runChecker(
     directory,
-    fakeBicep(directory, sarif([]), 0, compiledOutput)
+    fakeBicep(directory, sarif([]), 0, compiledOutput),
   );
 
   assert.equal(result.status, 1);
@@ -2314,15 +2544,15 @@ test("reports every invalid container image build source", () => {
   const directory = temporaryDirectory();
   const compiledOutput = template({
     firstImage: imageResource(
-      "git::https://github.com/example/first.git?ref=eb33f12"
+      "git::https://github.com/example/first.git?ref=eb33f12",
     ),
     secondImage: imageResource(
-      "git::https://github.com/example/second.git?ref=abc1234"
-    )
+      "git::https://github.com/example/second.git?ref=abc1234",
+    ),
   });
   const result = runChecker(
     directory,
-    fakeBicep(directory, sarif([]), 0, compiledOutput)
+    fakeBicep(directory, sarif([]), 0, compiledOutput),
   );
 
   assert.equal(result.status, 1);
@@ -2338,13 +2568,13 @@ test("allows an abbreviated image tag with a full build ref", () => {
     image: radiusResource(containerImageType, {
       tag: "eb33f12",
       build: {
-        source: `git::https://github.com/example/app.git?ref=${fullSha}`
-      }
-    })
+        source: `git::https://github.com/example/app.git?ref=${fullSha}`,
+      },
+    }),
   });
   const result = runChecker(
     directory,
-    fakeBicep(directory, sarif([]), 0, compiledOutput)
+    fakeBicep(directory, sarif([]), 0, compiledOutput),
   );
 
   assert.equal(result.status, 0);
@@ -2355,13 +2585,13 @@ it.each([
   { name: "missing", source: undefined },
   { name: "null", source: null },
   { name: "numeric", source: 7 },
-  { name: "object", source: { ref: "eb33f12" } }
+  { name: "object", source: { ref: "eb33f12" } },
 ])("ignores a $name build source", ({ source }) => {
   const directory = temporaryDirectory();
   const compiledOutput = template({ image: imageResource(source) });
   const result = runChecker(
     directory,
-    fakeBicep(directory, sarif([]), 0, compiledOutput)
+    fakeBicep(directory, sarif([]), 0, compiledOutput),
   );
 
   assert.equal(result.status, 0);
@@ -2371,11 +2601,11 @@ it.each([
 test("checks container image build sources in local modules", () => {
   const directory = temporaryDirectory();
   const compiledOutput = template({
-    module: localModule("git::https://github.com/example/app.git?ref=eb33f12")
+    module: localModule("git::https://github.com/example/app.git?ref=eb33f12"),
   });
   const result = runChecker(
     directory,
-    fakeBicep(directory, sarif([]), 0, compiledOutput)
+    fakeBicep(directory, sarif([]), 0, compiledOutput),
   );
 
   assert.equal(result.status, 1);
@@ -2389,20 +2619,20 @@ test("uses each local module's parameter defaults", () => {
       module: localModule("[parameters('buildSource')]", {
         buildSource: {
           type: "string",
-          defaultValue: "git::https://github.com/example/app.git?ref=eb33f12"
-        }
-      })
+          defaultValue: "git::https://github.com/example/app.git?ref=eb33f12",
+        },
+      }),
     },
     {
       buildSource: {
         type: "string",
-        defaultValue: `git::https://github.com/example/app.git?ref=${fullSha}`
-      }
-    }
+        defaultValue: `git::https://github.com/example/app.git?ref=${fullSha}`,
+      },
+    },
   );
   const result = runChecker(
     directory,
-    fakeBicep(directory, sarif([]), 0, compiledOutput)
+    fakeBicep(directory, sarif([]), 0, compiledOutput),
   );
 
   assert.equal(result.status, 1);
@@ -2416,19 +2646,19 @@ test("resolves local module parameters in the parent scope", () => {
       module: localModule(
         interpolatedGitRef,
         { gitRef: { type: "string" } },
-        { gitRef: { value: "[parameters('gitRef')]" } }
-      )
+        { gitRef: { value: "[parameters('gitRef')]" } },
+      ),
     },
     {
       gitRef: {
         type: "string",
-        defaultValue: "eb33f12"
-      }
-    }
+        defaultValue: "eb33f12",
+      },
+    },
   );
   const result = runChecker(
     directory,
-    fakeBicep(directory, sarif([]), 0, compiledOutput)
+    fakeBicep(directory, sarif([]), 0, compiledOutput),
   );
 
   assert.equal(result.status, 1);
@@ -2441,12 +2671,12 @@ test("rejects a literal ref supplied by a local module invocation", () => {
     module: localModule(
       interpolatedGitRef,
       { gitRef: { type: "string" } },
-      { gitRef: { value: "eb33f12" } }
-    )
+      { gitRef: { value: "eb33f12" } },
+    ),
   });
   const result = runChecker(
     directory,
-    fakeBicep(directory, sarif([]), 0, compiledOutput)
+    fakeBicep(directory, sarif([]), 0, compiledOutput),
   );
 
   assert.equal(result.status, 1);
@@ -2459,23 +2689,23 @@ test("resolves parameters through nested local module invocations", () => {
   const innerModule = localModule(
     interpolatedGitRef,
     { gitRef: { type: "string" } },
-    { gitRef: { value: "[parameters('gitRef')]" } }
+    { gitRef: { value: "[parameters('gitRef')]" } },
   );
   const outerModule = localModuleResources(
     { inner: innerModule },
     { gitRef: { type: "string" } },
-    { gitRef: { value: "eb33f12" } }
+    { gitRef: { value: "eb33f12" } },
   );
   const compiledOutput = template({ outer: outerModule });
   const result = runChecker(
     directory,
-    fakeBicep(directory, sarif([]), 0, compiledOutput)
+    fakeBicep(directory, sarif([]), 0, compiledOutput),
   );
 
   assert.equal(result.status, 1);
   assert.match(
     result.stderr,
-    /outer\.inner\.image\.properties\.build\.source/u
+    /outer\.inner\.image\.properties\.build\.source/u,
   );
   assert.match(result.stderr, /eb33f12/u);
 });
@@ -2488,15 +2718,15 @@ test("module invocation parameters override nested defaults", () => {
       {
         gitRef: {
           type: "string",
-          defaultValue: "eb33f12"
-        }
+          defaultValue: "eb33f12",
+        },
       },
-      { gitRef: { value: fullSha } }
-    )
+      { gitRef: { value: fullSha } },
+    ),
   });
   const result = runChecker(
     directory,
-    fakeBicep(directory, sarif([]), 0, compiledOutput)
+    fakeBicep(directory, sarif([]), 0, compiledOutput),
   );
 
   assert.equal(result.status, 0);
@@ -2511,15 +2741,15 @@ test("does not use a nested default when its invocation value is unresolved", ()
       {
         gitRef: {
           type: "string",
-          defaultValue: "eb33f12"
-        }
+          defaultValue: "eb33f12",
+        },
       },
-      { gitRef: { value: "[variables('gitRef')]" } }
-    )
+      { gitRef: { value: "[variables('gitRef')]" } },
+    ),
   });
   const result = runChecker(
     directory,
-    fakeBicep(directory, sarif([]), 0, compiledOutput)
+    fakeBicep(directory, sarif([]), 0, compiledOutput),
   );
 
   assert.equal(result.status, 0);
@@ -2533,13 +2763,13 @@ test("unwraps and rejects a short buildSource parameter default", () => {
     {
       buildSource: {
         type: "string",
-        defaultValue: "git::https://github.com/example/app.git?ref=abc1234"
-      }
-    }
+        defaultValue: "git::https://github.com/example/app.git?ref=abc1234",
+      },
+    },
   );
   const result = runChecker(
     directory,
-    fakeBicep(directory, sarif([]), 0, compiledOutput)
+    fakeBicep(directory, sarif([]), 0, compiledOutput),
   );
 
   assert.equal(result.status, 1);
@@ -2550,18 +2780,18 @@ test("resolves an interpolated ref parameter default", () => {
   const directory = temporaryDirectory();
   const compiledOutput = template(
     {
-      image: imageResource(interpolatedGitRef)
+      image: imageResource(interpolatedGitRef),
     },
     {
       gitRef: {
         type: "string",
-        defaultValue: "eb33f12"
-      }
-    }
+        defaultValue: "eb33f12",
+      },
+    },
   );
   const result = runChecker(
     directory,
-    fakeBicep(directory, sarif([]), 0, compiledOutput)
+    fakeBicep(directory, sarif([]), 0, compiledOutput),
   );
 
   assert.equal(result.status, 1);
@@ -2573,26 +2803,26 @@ test("accepts literal and parameter-default full or tagged build refs", () => {
   const compiledOutput = template(
     {
       literal: imageResource(
-        `git::https://github.com/example/app.git?ref=${fullSha}`
+        `git::https://github.com/example/app.git?ref=${fullSha}`,
       ),
       parameter: imageResource("[parameters('buildSource')]"),
-      tagParameter: imageResource("[parameters('tagSource')]")
+      tagParameter: imageResource("[parameters('tagSource')]"),
     },
     {
       buildSource: {
         type: "string",
-        defaultValue: `git::https://github.com/example/app.git?ref=${fullSha}`
+        defaultValue: `git::https://github.com/example/app.git?ref=${fullSha}`,
       },
       tagSource: {
         type: "string",
         defaultValue:
-          "git::https://github.com/example/app.git?ref=refs/tags/v1.91.0"
-      }
-    }
+          "git::https://github.com/example/app.git?ref=refs/tags/v1.91.0",
+      },
+    },
   );
   const result = runChecker(
     directory,
-    fakeBicep(directory, sarif([]), 0, compiledOutput)
+    fakeBicep(directory, sarif([]), 0, compiledOutput),
   );
 
   assert.equal(result.status, 0);
@@ -2604,17 +2834,17 @@ test("ignores build sources that do not resolve to literal refs", () => {
   const compiledOutput = template({
     variable: imageResource("[variables('source')]"),
     formatted: imageResource(
-      "[format('git::https://github.com/example/app.git?ref={0}', variables('sha'))]"
+      "[format('git::https://github.com/example/app.git?ref={0}', variables('sha'))]",
     ),
     formattedParameter: imageResource(interpolatedGitRef),
     parameter: imageResource("[parameters('buildSource')]"),
     build: radiusResource(containerImageType, {
-      build: "[parameters('build')]"
-    })
+      build: "[parameters('build')]",
+    }),
   });
   const result = runChecker(
     directory,
-    fakeBicep(directory, sarif([]), 0, compiledOutput)
+    fakeBicep(directory, sarif([]), 0, compiledOutput),
   );
 
   assert.equal(result.status, 0);
@@ -2625,12 +2855,12 @@ test("ignores Git refs outside container image resources", () => {
   const directory = temporaryDirectory();
   const compiledOutput = template({
     other: radiusResource("Example/other@2025-01-01", {
-      source: "git::https://github.com/example/app.git?ref=eb33f12"
-    })
+      source: "git::https://github.com/example/app.git?ref=eb33f12",
+    }),
   });
   const result = runChecker(
     directory,
-    fakeBicep(directory, sarif([]), 0, compiledOutput)
+    fakeBicep(directory, sarif([]), 0, compiledOutput),
   );
 
   assert.equal(result.status, 0);
@@ -2641,7 +2871,12 @@ test("rejects an interpolated ref from captured Bicep output", () => {
   const directory = temporaryDirectory();
   const result = runChecker(
     directory,
-    fakeBicep(directory, sarif([]), 0, bicepFixture("interpolated-ref"))
+    fakeBicep(
+      directory,
+      sarif([]),
+      0,
+      bicepFixture("interpolated-ref"),
+    ),
   );
 
   assert.equal(result.status, 1);
@@ -2653,13 +2888,18 @@ test("rejects a local module argument from captured Bicep output", () => {
   const directory = temporaryDirectory();
   const result = runChecker(
     directory,
-    fakeBicep(directory, sarif([]), 0, bicepFixture("local-module-ref"))
+    fakeBicep(
+      directory,
+      sarif([]),
+      0,
+      bicepFixture("local-module-ref"),
+    ),
   );
 
   assert.equal(result.status, 1);
   assert.match(
     result.stderr,
-    /child\.containerImage\.properties\.build\.source/u
+    /child\.containerImage\.properties\.build\.source/u,
   );
   assert.match(result.stderr, /eb33f12/u);
 });
@@ -2686,10 +2926,10 @@ function diagnostic(
           region: {
             startLine,
             ...columns
-          }
-        }
-      }
-    ]
+          },
+        },
+      },
+    ],
   };
 }
 
@@ -2871,7 +3111,7 @@ describe("diagnostic locations", () => {
 // Compiler output holding a single Bicep diagnostic.
 function bcp(code: number, text: string, startLine: number): string {
   return sarif([
-    diagnostic(`BCP${code.toString().padStart(3, "0")}`, text, startLine)
+    diagnostic(`BCP${code.toString().padStart(3, "0")}`, text, startLine),
   ]);
 }
 
@@ -2880,25 +3120,25 @@ const failure = sarif([
     level: "error",
     ruleId: "BCP057",
     message: {
-      text: "The name 'missing' does not exist in the current context."
+      text: "The name 'missing' does not exist in the current context.",
     },
     locations: [
       {
         physicalLocation: {
           artifactLocation: { uri: "file:///tmp/app.bicep" },
-          region: { startLine: 12 }
-        }
-      }
-    ]
-  }
+          region: { startLine: 12 },
+        },
+      },
+    ],
+  },
 ]);
 
 const otherFailure = sarif([
   {
     level: "error",
     ruleId: "BCP062",
-    message: { text: "The referenced declaration is not valid." }
-  }
+    message: { text: "The referenced declaration is not valid." },
+  },
 ]);
 
 // The same diagnostic reported at a line that moved because the model was
@@ -2908,30 +3148,30 @@ const shiftedFailure = sarif([
     level: "error",
     ruleId: "BCP057",
     message: {
-      text: "The name 'missing' does not exist in the current context."
+      text: "The name 'missing' does not exist in the current context.",
     },
     locations: [
       {
         physicalLocation: {
           artifactLocation: { uri: "file:///tmp/app.bicep" },
-          region: { startLine: 48 }
-        }
-      }
-    ]
-  }
+          region: { startLine: 48 },
+        },
+      },
+    ],
+  },
 ]);
 
 function writeRunRecord(directory: string, record: unknown): void {
   fs.writeFileSync(
     path.join(directory, STAGING_RUN_RECORD),
-    typeof record === "string" ? record : JSON.stringify(record, null, 2)
+    typeof record === "string" ? record : JSON.stringify(record, null, 2),
   );
 }
 
 function readRepair(directory: string): unknown {
   return (
     JSON.parse(
-      fs.readFileSync(path.join(directory, STAGING_RUN_RECORD), "utf8")
+      fs.readFileSync(path.join(directory, STAGING_RUN_RECORD), "utf8"),
     ) as { repair?: unknown }
   ).repair;
 }
@@ -2941,7 +3181,7 @@ function stagedRun(directory: string, repair?: unknown): void {
     version: 1,
     runId: "test-run",
     baseline: { "app.bicep": null },
-    ...(repair === undefined ? {} : { repair })
+    ...(repair === undefined ? {} : { repair }),
   });
 }
 
@@ -2966,7 +3206,7 @@ describe("repair budget", () => {
     assert.equal(result.status, 0);
     assert.deepEqual(readRepair(directory), {
       attempts: 2,
-      fingerprint: null
+      fingerprint: null,
     });
   });
 
@@ -2974,7 +3214,7 @@ describe("repair budget", () => {
     const directory = temporaryDirectory();
     stagedRun(directory, {
       attempts: REPAIR_COMPILE_LIMIT - 1,
-      fingerprint: null
+      fingerprint: null,
     });
 
     const result = runChecker(directory, fakeBicep(directory, failure, 1));
@@ -2995,7 +3235,7 @@ describe("repair budget", () => {
     const directory = temporaryDirectory();
     stagedRun(directory, {
       attempts: REPAIR_COMPILE_LIMIT,
-      fingerprint: "abc"
+      fingerprint: "abc",
     });
     // A compiler that would pass, so exit 2 can only come from the
     // refusal rather than from the compile.
@@ -3003,7 +3243,7 @@ describe("repair budget", () => {
     const before = fs.readFileSync(path.join(directory, "build"), "utf8");
     fs.writeFileSync(
       path.join(directory, "build"),
-      `require('node:fs').writeFileSync(${JSON.stringify(path.join(directory, "spawned"))}, 'yes');\n${before}`
+      `require('node:fs').writeFileSync(${JSON.stringify(path.join(directory, "spawned"))}, 'yes');\n${before}`,
     );
 
     const result = runChecker(directory, env);
@@ -3030,7 +3270,7 @@ describe("repair budget", () => {
     assert.equal(fs.existsSync(path.join(directory, "spawned")), false);
     assert.deepEqual(readRepair(directory), {
       attempts: REPAIR_COMPILE_LIMIT,
-      fingerprint: "abc"
+      fingerprint: "abc",
     });
   });
 
@@ -3044,7 +3284,7 @@ describe("repair budget", () => {
     // Same diagnostic, reported at a line that moved.
     const second = runChecker(
       directory,
-      fakeBicep(directory, shiftedFailure, 1)
+      fakeBicep(directory, shiftedFailure, 1),
     );
 
     assert.equal(second.status, 1);
@@ -3242,17 +3482,17 @@ describe("repair budget", () => {
     const compiledOutput = template({
       web: {
         type: "Radius.Compute/containers@2025-08-01-preview",
-        properties: { properties: {} }
-      }
+        properties: { properties: {} },
+      },
     });
 
     const first = runChecker(
       directory,
-      fakeBicep(directory, sarif([]), 0, compiledOutput)
+      fakeBicep(directory, sarif([]), 0, compiledOutput),
     );
     const second = runChecker(
       directory,
-      fakeBicep(directory, sarif([]), 0, compiledOutput)
+      fakeBicep(directory, sarif([]), 0, compiledOutput),
     );
 
     assert.doesNotMatch(first.stderr, /same compiler failure/u);
@@ -3265,19 +3505,19 @@ describe("repair budget", () => {
     const missing = template({
       web: {
         type: "Radius.Compute/containers@2025-08-01-preview",
-        properties: { properties: {} }
-      }
+        properties: { properties: {} },
+      },
     });
     const unsafe = template({
       web: radiusResource("Radius.Compute/containers@2025-08-01-preview", {
-        codeReference: "../src/app.ts"
-      })
+        codeReference: "../src/app.ts",
+      }),
     });
 
     runChecker(directory, fakeBicep(directory, sarif([]), 0, missing));
     const second = runChecker(
       directory,
-      fakeBicep(directory, sarif([]), 0, unsafe)
+      fakeBicep(directory, sarif([]), 0, unsafe),
     );
 
     assert.doesNotMatch(second.stderr, /same compiler failure/u);
@@ -3289,7 +3529,7 @@ describe("repair budget", () => {
 
     const statuses = Array.from(
       { length: REPAIR_COMPILE_LIMIT },
-      () => runChecker(directory, fakeBicep(directory, failure, 1)).status
+      () => runChecker(directory, fakeBicep(directory, failure, 1)).status,
     );
     assert.deepEqual(statuses, Array(REPAIR_COMPILE_LIMIT).fill(1));
 
@@ -3301,7 +3541,7 @@ describe("repair budget", () => {
     );
     assert.equal(
       (readRepair(directory) as { attempts: number }).attempts,
-      REPAIR_COMPILE_LIMIT
+      REPAIR_COMPILE_LIMIT,
     );
   });
 
@@ -3315,14 +3555,14 @@ describe("repair budget", () => {
     assert.doesNotMatch(result.stderr, /repair budget/u);
     assert.equal(
       fs.existsSync(path.join(directory, STAGING_RUN_RECORD)),
-      false
+      false,
     );
   });
 
   it.each([
     ["malformed JSON", "{ not json"],
     ["a JSON array", "[]"],
-    ["a JSON scalar", '"run"']
+    ["a JSON scalar", '"run"'],
   ])("refuses to compile a staged run whose record is %s", (_name, text) => {
     const directory = temporaryDirectory();
     writeRunRecord(directory, text);
@@ -3348,7 +3588,7 @@ describe("repair budget", () => {
     // may still hold the baseline the publish check needs.
     assert.equal(
       fs.readFileSync(path.join(directory, STAGING_RUN_RECORD), "utf8"),
-      text
+      text,
     );
   });
 
@@ -3369,7 +3609,7 @@ describe("repair budget", () => {
     runChecker(directory, fakeBicep(directory, sarif([]), 0));
 
     const record = JSON.parse(
-      fs.readFileSync(path.join(directory, STAGING_RUN_RECORD), "utf8")
+      fs.readFileSync(path.join(directory, STAGING_RUN_RECORD), "utf8"),
     ) as { runId: string; baseline: Record<string, string | null> };
     assert.equal(record.runId, "test-run");
     assert.deepEqual(record.baseline, { "app.bicep": null });
@@ -3405,7 +3645,7 @@ describe("repair budget", () => {
       } finally {
         fs.chmodSync(directory, 0o755);
       }
-    }
+    },
   );
 
   it("returns unavailable when an unexpected checker exception escapes main", () => {
@@ -3461,7 +3701,7 @@ describe("repair budget", () => {
         const attempts = REPAIR_COMPILE_LIMIT + 2;
         const statuses = Array.from(
           { length: attempts },
-          () => rerunChecker(directory, env).status
+          () => rerunChecker(directory, env).status,
         );
 
         assert.deepEqual(statuses, Array(attempts).fill(2));
@@ -3498,7 +3738,7 @@ describe("repair budget", () => {
       } finally {
         fs.chmodSync(directory, 0o755);
       }
-    }
+    },
   );
 
   it("counts a run that never leaves a staging directory separately", () => {
@@ -3549,7 +3789,7 @@ describe("agreement with the core repair rules", () => {
       const directory = temporaryDirectory();
       stagedRun(directory, { attempts, fingerprint: null });
       const core = evaluateRepairAttempt(
-        parseRepairState({ attempts, fingerprint: null })
+        parseRepairState({ attempts, fingerprint: null }),
       );
 
       // A compiler that passes, so the only way the checker can fail is by
@@ -3560,7 +3800,7 @@ describe("agreement with the core repair rules", () => {
       if (!core.allowed) {
         assert.equal(result.stderr.trim(), core.reason);
       }
-    }
+    },
   );
 
   // Each case is driven through the checker, so the script's own copy of the
@@ -3573,13 +3813,13 @@ describe("agreement with the core repair rules", () => {
       name: "an identical failure",
       first: bcp(57, "missing", 12),
       second: bcp(57, "missing", 12),
-      repeated: true
+      repeated: true,
     },
     {
       name: "the same failure at a shifted line",
       first: bcp(57, "missing", 12),
       second: bcp(57, "missing", 48),
-      repeated: true
+      repeated: true,
     },
     {
       name: "the same failure at a shifted column",
@@ -3591,20 +3831,20 @@ describe("agreement with the core repair rules", () => {
       name: "the same failures in a different order",
       first: sarif([
         diagnostic("BCP057", "first problem", 1),
-        diagnostic("BCP062", "second problem", 2)
+        diagnostic("BCP062", "second problem", 2),
       ]),
       second: sarif([
         diagnostic("BCP062", "second problem", 9),
-        diagnostic("BCP057", "first problem", 3)
+        diagnostic("BCP057", "first problem", 3),
       ]),
-      repeated: true
+      repeated: true,
     },
     {
       name: "a different failure",
       first: bcp(57, "missing", 12),
       second: bcp(62, "invalid", 12),
-      repeated: false
-    }
+      repeated: false,
+    },
   ])("agrees on whether $name is a repeat", ({ first, second, repeated }) => {
     const directory = temporaryDirectory();
     stagedRun(directory);
@@ -3620,7 +3860,7 @@ describe("agreement with the core repair rules", () => {
     assert.equal(result.stderr.includes(REPEATED_FAILURE_MESSAGE), repeated);
     assert.equal(
       isRepeatedFailure(afterFirst, afterSecond.fingerprint),
-      repeated
+      repeated,
     );
   });
 
@@ -3633,13 +3873,13 @@ describe("agreement with the core repair rules", () => {
 
     const result = runChecker(
       directory,
-      fakeBicep(directory, bcp(57, "missing", 12), 1)
+      fakeBicep(directory, bcp(57, "missing", 12), 1),
     );
     const recorded = parseRepairState(readRepair(directory));
 
     assert.equal(
       recorded.fingerprint,
-      fingerprintCompilerOutput(result.stderr)
+      fingerprintCompilerOutput(result.stderr),
     );
   });
 
@@ -3657,14 +3897,14 @@ describe("agreement with the core repair rules", () => {
     // through its own fingerprint, exactly as core would.
     const second = runChecker(
       directory,
-      fakeBicep(directory, shiftedFailure, 1)
+      fakeBicep(directory, shiftedFailure, 1),
     );
     const after = parseRepairState(readRepair(directory));
 
     assert.equal(isRepeatedFailure(recorded, after.fingerprint), true);
     assert.match(
       second.stderr,
-      new RegExp(escapeRegExp(REPEATED_FAILURE_MESSAGE), "u")
+      new RegExp(escapeRegExp(REPEATED_FAILURE_MESSAGE), "u"),
     );
   });
 
@@ -3698,7 +3938,7 @@ const securePassword = { type: "securestring" };
 function stagedResolvedTypes(directory: string, contract: unknown): void {
   fs.writeFileSync(
     path.join(directory, RESOLVED_TYPES),
-    typeof contract === "string" ? contract : JSON.stringify(contract, null, 2)
+    typeof contract === "string" ? contract : JSON.stringify(contract, null, 2),
   );
 }
 
@@ -3713,10 +3953,10 @@ function rabbitMqWithRawPassword(): string {
     {
       rabbitmq: radiusResource(rabbitMqType, {
         queue: "orders",
-        password: "[parameters('rabbitmqPassword')]"
-      })
+        password: "[parameters('rabbitmqPassword')]",
+      }),
     },
-    { rabbitmqPassword: securePassword }
+    { rabbitmqPassword: securePassword },
   );
 }
 
@@ -3782,12 +4022,12 @@ describe("secure parameter targets", () => {
     stagedRun(directory);
     stagedResolvedTypes(
       directory,
-      resolvedTypes({ [rabbitMqType]: { password: false, queue: false } })
+      resolvedTypes({ [rabbitMqType]: { password: false, queue: false } }),
     );
 
     const result = runChecker(
       directory,
-      fakeBicep(directory, sarif([]), 0, rabbitMqWithRawPassword())
+      fakeBicep(directory, sarif([]), 0, rabbitMqWithRawPassword()),
     );
 
     assert.equal(result.status, 1);
@@ -3802,21 +4042,21 @@ describe("secure parameter targets", () => {
     stagedRun(directory);
     stagedResolvedTypes(
       directory,
-      resolvedTypes({ [mySqlType]: { password: true, database: false } })
+      resolvedTypes({ [mySqlType]: { password: true, database: false } }),
     );
     const compiledOutput = template(
       {
         mysql: radiusResource(mySqlType, {
           database: "orders",
-          password: "[parameters('mysqlPassword')]"
-        })
+          password: "[parameters('mysqlPassword')]",
+        }),
       },
-      { mysqlPassword: securePassword }
+      { mysqlPassword: securePassword },
     );
 
     const result = runChecker(
       directory,
-      fakeBicep(directory, sarif([]), 0, compiledOutput)
+      fakeBicep(directory, sarif([]), 0, compiledOutput),
     );
 
     assert.equal(result.status, 0);
@@ -3830,24 +4070,24 @@ describe("secure parameter targets", () => {
       directory,
       resolvedTypes({
         [mySqlType]: { password: true },
-        [rabbitMqType]: { password: false }
-      })
+        [rabbitMqType]: { password: false },
+      }),
     );
     const compiledOutput = template(
       {
         mysql: radiusResource(mySqlType, {
-          password: "[parameters('credential')]"
+          password: "[parameters('credential')]",
         }),
         rabbitmq: radiusResource(rabbitMqType, {
-          password: "[parameters('credential')]"
-        })
+          password: "[parameters('credential')]",
+        }),
       },
-      { credential: securePassword }
+      { credential: securePassword },
     );
 
     const result = runChecker(
       directory,
-      fakeBicep(directory, sarif([]), 0, compiledOutput)
+      fakeBicep(directory, sarif([]), 0, compiledOutput),
     );
 
     assert.equal(result.status, 1);
@@ -3861,7 +4101,7 @@ describe("secure parameter targets", () => {
 
     const result = runChecker(
       directory,
-      fakeBicep(directory, sarif([]), 0, rabbitMqWithRawPassword())
+      fakeBicep(directory, sarif([]), 0, rabbitMqWithRawPassword()),
     );
 
     assert.equal(result.status, 1);
@@ -3873,12 +4113,12 @@ describe("secure parameter targets", () => {
     const directory = temporaryDirectory();
     stagedRun(directory);
     const compiledOutput = template({
-      rabbitmq: radiusResource(rabbitMqType, { queue: "orders" })
+      rabbitmq: radiusResource(rabbitMqType, { queue: "orders" }),
     });
 
     const result = runChecker(
       directory,
-      fakeBicep(directory, sarif([]), 0, compiledOutput)
+      fakeBicep(directory, sarif([]), 0, compiledOutput),
     );
 
     assert.equal(result.status, 0);
@@ -3890,7 +4130,7 @@ describe("secure parameter targets", () => {
 
     const result = runChecker(
       directory,
-      fakeBicep(directory, sarif([]), 0, rabbitMqWithRawPassword())
+      fakeBicep(directory, sarif([]), 0, rabbitMqWithRawPassword()),
     );
 
     assert.equal(result.status, 0);
@@ -3907,12 +4147,12 @@ describe("secure parameter targets", () => {
     // No secure parameter anywhere: the refusal comes from the unreadable
     // contract rather than from anything in the model.
     const compiledOutput = template({
-      rabbitmq: radiusResource(rabbitMqType, { queue: "orders" })
+      rabbitmq: radiusResource(rabbitMqType, { queue: "orders" }),
     });
 
     const result = runChecker(
       directory,
-      fakeBicep(directory, sarif([]), 0, compiledOutput)
+      fakeBicep(directory, sarif([]), 0, compiledOutput),
     );
 
     assert.equal(result.status, 2);
@@ -4013,31 +4253,31 @@ describe("secure parameter targets", () => {
     {
       name: "a different contract version",
       contract: { contractVersion: 2, types: {} },
-      expected: /is not a version 1 resolved-type contract/u
+      expected: /is not a version 1 resolved-type contract/u,
     },
     {
       name: "no type map",
       contract: { contractVersion: 1 },
-      expected: /is not a version 1 resolved-type contract/u
+      expected: /is not a version 1 resolved-type contract/u,
     },
     {
       name: "a JSON array",
       contract: [],
-      expected: /is not a version 1 resolved-type contract/u
+      expected: /is not a version 1 resolved-type contract/u,
     },
     {
       name: "a type that is not an object",
       contract: { contractVersion: 1, types: { [rabbitMqType]: "password" } },
-      expected: /does not map each property to a boolean/u
+      expected: /does not map each property to a boolean/u,
     },
     {
       name: "a property sensitivity that is not a boolean",
       contract: {
         contractVersion: 1,
-        types: { [rabbitMqType]: { password: "false" } }
+        types: { [rabbitMqType]: { password: "false" } },
       },
-      expected: /does not map each property to a boolean/u
-    }
+      expected: /does not map each property to a boolean/u,
+    },
   ])(
     "fails closed on staged resolved types with $name",
     ({ contract, expected }) => {
@@ -4047,12 +4287,12 @@ describe("secure parameter targets", () => {
 
       const result = runChecker(
         directory,
-        fakeBicep(directory, sarif([]), 0, rabbitMqWithRawPassword())
+        fakeBicep(directory, sarif([]), 0, rabbitMqWithRawPassword()),
       );
 
       assert.equal(result.status, 2);
       assert.match(result.stderr, expected);
-    }
+    },
   );
 
   it("fails closed when the staged resolved types cannot be read at all", () => {
@@ -4087,12 +4327,12 @@ describe("secure parameter targets", () => {
     stagedRun(directory);
     stagedResolvedTypes(
       directory,
-      resolvedTypes({ [mySqlType]: { password: true } })
+      resolvedTypes({ [mySqlType]: { password: true } }),
     );
 
     const result = runChecker(
       directory,
-      fakeBicep(directory, sarif([]), 0, rabbitMqWithRawPassword())
+      fakeBicep(directory, sarif([]), 0, rabbitMqWithRawPassword()),
     );
 
     assert.equal(result.status, 1);
@@ -4105,12 +4345,12 @@ describe("secure parameter targets", () => {
     stagedRun(directory);
     stagedResolvedTypes(
       directory,
-      resolvedTypes({ [rabbitMqType]: { queue: false } })
+      resolvedTypes({ [rabbitMqType]: { queue: false } }),
     );
 
     const result = runChecker(
       directory,
-      fakeBicep(directory, sarif([]), 0, rabbitMqWithRawPassword())
+      fakeBicep(directory, sarif([]), 0, rabbitMqWithRawPassword()),
     );
 
     assert.equal(result.status, 1);
@@ -4124,15 +4364,15 @@ describe("secure parameter targets", () => {
     const compiledOutput = template(
       {
         broker: radiusResource("Radius.Resources/brokers@2025-08-01-preview", {
-          password: "[parameters('brokerPassword')]"
-        })
+          password: "[parameters('brokerPassword')]",
+        }),
       },
-      { brokerPassword: securePassword }
+      { brokerPassword: securePassword },
     );
 
     const result = runChecker(
       directory,
-      fakeBicep(directory, sarif([]), 0, compiledOutput)
+      fakeBicep(directory, sarif([]), 0, compiledOutput),
     );
 
     assert.equal(result.status, 0);
@@ -4144,26 +4384,26 @@ describe("secure parameter targets", () => {
     stagedRun(directory);
     stagedResolvedTypes(
       directory,
-      resolvedTypes({ [rabbitMqType]: { password: false } })
+      resolvedTypes({ [rabbitMqType]: { password: false } }),
     );
     const compiledOutput = template(
       {
         messaging: localModuleResources(
           {
             rabbitmq: radiusResource(rabbitMqType, {
-              password: "[parameters('modulePassword')]"
-            })
+              password: "[parameters('modulePassword')]",
+            }),
           },
           { modulePassword: securePassword },
-          { modulePassword: { value: "[parameters('rootPassword')]" } }
-        )
+          { modulePassword: { value: "[parameters('rootPassword')]" } },
+        ),
       },
-      { rootPassword: securePassword }
+      { rootPassword: securePassword },
     );
 
     const result = runChecker(
       directory,
-      fakeBicep(directory, sarif([]), 0, compiledOutput)
+      fakeBicep(directory, sarif([]), 0, compiledOutput),
     );
 
     assert.equal(result.status, 1);
@@ -4175,18 +4415,18 @@ describe("secure parameter targets", () => {
     stagedRun(directory);
     stagedResolvedTypes(
       directory,
-      resolvedTypes({ [rabbitMqType]: { password: false } })
+      resolvedTypes({ [rabbitMqType]: { password: false } }),
     );
     const compiledOutput = template({
       messaging: {
         type: "Microsoft.Resources/deployments",
-        properties: { parameters: {}, template: "not a template" }
-      }
+        properties: { parameters: {}, template: "not a template" },
+      },
     });
 
     const result = runChecker(
       directory,
-      fakeBicep(directory, sarif([]), 0, compiledOutput)
+      fakeBicep(directory, sarif([]), 0, compiledOutput),
     );
 
     assert.equal(result.status, 0);
@@ -4196,31 +4436,31 @@ describe("secure parameter targets", () => {
   it.each([
     {
       name: "an interpolated secure parameter",
-      value: "[format('{0}', parameters('rabbitmqPassword'))]"
+      value: "[format('{0}', parameters('rabbitmqPassword'))]",
     },
     {
       name: "a secret resource ID",
-      value: "[reference('rabbitmqCredentials').id]"
+      value: "[reference('rabbitmqCredentials').id]",
     },
     { name: "a literal", value: "rabbitmq-credentials" },
-    { name: "a value that is not a string", value: 42 }
+    { name: "a value that is not a string", value: 42 },
   ])("does not report $name", ({ value }) => {
     const directory = temporaryDirectory();
     stagedRun(directory);
     stagedResolvedTypes(
       directory,
-      resolvedTypes({ [rabbitMqType]: { password: false } })
+      resolvedTypes({ [rabbitMqType]: { password: false } }),
     );
     const compiledOutput = template(
       {
-        rabbitmq: radiusResource(rabbitMqType, { password: value })
+        rabbitmq: radiusResource(rabbitMqType, { password: value }),
       },
-      { rabbitmqPassword: securePassword }
+      { rabbitmqPassword: securePassword },
     );
 
     const result = runChecker(
       directory,
-      fakeBicep(directory, sarif([]), 0, compiledOutput)
+      fakeBicep(directory, sarif([]), 0, compiledOutput),
     );
 
     assert.equal(result.status, 0);
@@ -4231,26 +4471,26 @@ describe("secure parameter targets", () => {
     { name: "is not secure", declaration: { type: "string" } },
     // A `@secure()` object legitimately carries a whole Secret data map, whose
     // enclosing property the schema does not mark sensitive.
-    { name: "is a secure object", declaration: { type: "secureObject" } }
+    { name: "is a secure object", declaration: { type: "secureObject" } },
   ])("does not report a parameter that $name", ({ declaration }) => {
     const directory = temporaryDirectory();
     stagedRun(directory);
     stagedResolvedTypes(
       directory,
-      resolvedTypes({ [rabbitMqType]: { password: false } })
+      resolvedTypes({ [rabbitMqType]: { password: false } }),
     );
     const compiledOutput = template(
       {
         rabbitmq: radiusResource(rabbitMqType, {
-          password: "[parameters('secretId')]"
-        })
+          password: "[parameters('secretId')]",
+        }),
       },
-      { secretId: declaration }
+      { secretId: declaration },
     );
 
     const result = runChecker(
       directory,
-      fakeBicep(directory, sarif([]), 0, compiledOutput)
+      fakeBicep(directory, sarif([]), 0, compiledOutput),
     );
 
     assert.equal(result.status, 0);
@@ -4263,8 +4503,8 @@ describe("secure parameter targets", () => {
     stagedResolvedTypes(
       directory,
       resolvedTypes({
-        "Radius.Security/secrets@2025-08-01-preview": { data: false }
-      })
+        "Radius.Security/secrets@2025-08-01-preview": { data: false },
+      }),
     );
     const compiledOutput = template(
       {
@@ -4272,17 +4512,17 @@ describe("secure parameter targets", () => {
           "Radius.Security/secrets@2025-08-01-preview",
           {
             data: {
-              password: { value: "[parameters('rabbitmqPassword')]" }
-            }
-          }
-        )
+              password: { value: "[parameters('rabbitmqPassword')]" },
+            },
+          },
+        ),
       },
-      { rabbitmqPassword: securePassword }
+      { rabbitmqPassword: securePassword },
     );
 
     const result = runChecker(
       directory,
-      fakeBicep(directory, sarif([]), 0, compiledOutput)
+      fakeBicep(directory, sarif([]), 0, compiledOutput),
     );
 
     assert.equal(result.status, 0);
@@ -4294,18 +4534,18 @@ describe("secure parameter targets", () => {
     stagedRun(directory);
     stagedResolvedTypes(
       directory,
-      resolvedTypes({ [rabbitMqType]: { password: false } })
+      resolvedTypes({ [rabbitMqType]: { password: false } }),
     );
     const compiledOutput = template({
       rabbitmq: {
         type: rabbitMqType,
-        properties: { properties: "[parameters('rabbitmqPassword')]" }
-      }
+        properties: { properties: "[parameters('rabbitmqPassword')]" },
+      },
     });
 
     const result = runChecker(
       directory,
-      fakeBicep(directory, sarif([]), 0, compiledOutput)
+      fakeBicep(directory, sarif([]), 0, compiledOutput),
     );
 
     // The missing envelope is a source-reference failure, not a credential one.
@@ -4329,7 +4569,7 @@ describe("resolved-type contract agreement", () => {
     "skills",
     "radius-app-bicep",
     "scripts",
-    "show-radius-type.mjs"
+    "show-radius-type.mjs",
   );
   const agreementType = "Radius.Messaging/rabbitMQ@2025-08-01-preview";
 
@@ -4338,12 +4578,12 @@ describe("resolved-type contract agreement", () => {
   function writerStagingDirectory(): string {
     const directory = path.join(
       temporaryDirectory(),
-      `${STAGING_DIR_PREFIX}agreement`
+      `${STAGING_DIR_PREFIX}agreement`,
     );
     fs.mkdirSync(directory, { recursive: true });
     fs.writeFileSync(
       path.join(directory, STAGING_RUN_RECORD),
-      JSON.stringify({ version: 1, runId: "agreement", baseline: {} })
+      JSON.stringify({ version: 1, runId: "agreement", baseline: {} }),
     );
     return directory;
   }
@@ -4360,18 +4600,18 @@ describe("resolved-type contract agreement", () => {
           type: string;
           apiVersion: string;
           schema: object;
-        }>
+        }>,
       ) => Promise<void>;
     };
     return await writeStagedResolvedTypes(directory, [
       {
         type: "Radius.Test/agreement",
         apiVersion: "2025-08-01-preview",
-        schema: { type: "object" }
-      }
+        schema: { type: "object" },
+      },
     ]).then(
       () => true,
-      () => false
+      () => false,
     );
   }
 
@@ -4389,9 +4629,9 @@ describe("resolved-type contract agreement", () => {
         sarif([]),
         0,
         template({
-          rabbitmq: radiusResource(agreementType, { queue: "orders" })
-        })
-      )
+          rabbitmq: radiusResource(agreementType, { queue: "orders" }),
+        }),
+      ),
     );
     return !/could not be read/u.test(result.stderr);
   }
@@ -4401,7 +4641,7 @@ describe("resolved-type contract agreement", () => {
     {
       name: "boolean property sensitivities",
       entry: { password: false, queue: true },
-      accepted: true
+      accepted: true,
     },
     { name: "a string entry", entry: "password", accepted: false },
     { name: "a null entry", entry: null, accepted: false },
@@ -4409,14 +4649,14 @@ describe("resolved-type contract agreement", () => {
     {
       name: "a stringly-typed boolean",
       entry: { password: "false" },
-      accepted: false
+      accepted: false,
     },
     { name: "a numeric sensitivity", entry: { password: 0 }, accepted: false },
-    { name: "a null sensitivity", entry: { password: null }, accepted: false }
+    { name: "a null sensitivity", entry: { password: null }, accepted: false },
   ])("both ends treat $name the same way", async ({ entry, accepted }) => {
     const staged = JSON.stringify({
       contractVersion: 1,
-      types: { [agreementType]: entry }
+      types: { [agreementType]: entry },
     });
 
     assert.equal(await writerAccepts(staged), accepted);

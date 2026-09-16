@@ -125,6 +125,66 @@ export function extractRecipeDefinition(source, resourceType) {
   return source.slice(start.index, end.index + end[0].length);
 }
 
+export function extractRecipeOutputPaths(definition) {
+  if (typeof definition !== "string") {
+    throw new Error("The Recipe definition must be text.");
+  }
+  const lines = definition.replaceAll("\r\n", "\n").split("\n");
+  const starts = [];
+  for (let index = 0; index < lines.length; index += 1) {
+    const match = /^([ \t]*)outputs[ \t]*:[ \t]*\{[ \t]*(?:\/\/.*)?$/u.exec(
+      lines[index]
+    );
+    if (match !== null) starts.push({ index, indentation: match[1].length });
+  }
+  if (starts.length === 0) return undefined;
+  if (starts.length > 1) {
+    throw new Error("The Recipe definition contains multiple outputs blocks.");
+  }
+
+  const { index: start, indentation: outputIndentation } = starts[0];
+  const parents = [];
+  const paths = [];
+  let closed = false;
+  for (let index = start + 1; index < lines.length; index += 1) {
+    const line = lines[index];
+    const trimmed = line.trim();
+    if (trimmed === "" || trimmed.startsWith("//")) continue;
+    const indentation = /^[ \t]*/u.exec(line)[0].length;
+    if (
+      indentation === outputIndentation &&
+      /^\}[ \t]*(?:\/\/.*)?$/u.test(trimmed)
+    ) {
+      closed = true;
+      break;
+    }
+    if (indentation <= outputIndentation) break;
+
+    const property =
+      /^(?:'((?:[^']|'')+)'|([A-Za-z_][A-Za-z0-9_]*))[ \t]*:[ \t]*(.*)$/u.exec(
+        trimmed
+      );
+    if (property === null) continue;
+    while (
+      parents.length > 0 &&
+      indentation <= parents[parents.length - 1].indentation
+    ) {
+      parents.pop();
+    }
+    const name = (property[1] ?? property[2]).replaceAll("''", "'");
+    paths.push([...parents.map((parent) => parent.name), name].join("."));
+    if (/^\{(?:[ \t]*\/\/.*)?$/u.test(property[3])) {
+      parents.push({ indentation, name });
+    }
+  }
+  if (!closed) {
+    throw new Error(
+      "The Recipe definition contains an incomplete outputs block."
+    );
+  }
+  return paths;
+}
+
 export function validateAzureRecipePack(source) {
   if (typeof source !== "string" || source.trim() === "") {
     throw new Error("The Azure Recipe pack must be non-empty text.");
