@@ -91,4 +91,18 @@ describe("showGraphModelingFailure", () => {
 
     expect(setError).toHaveBeenCalledTimes(1);
   });
+
+  it("passes the server-provided column through to the error renderer", () => {
+    const browser = createFakeBrowser();
+    const setError: GraphErrorRenderer = vi.fn();
+    const message =
+      "The model could not compile. app.bicep line 7, column 17: Invalid syntax.";
+
+    showGraphModelingFailure(browser.context, setError, message, {
+      containerId: "graph-container",
+      statusIds: []
+    });
+
+    expect(setError).toHaveBeenCalledWith("graph-container", message);
+  });
 });

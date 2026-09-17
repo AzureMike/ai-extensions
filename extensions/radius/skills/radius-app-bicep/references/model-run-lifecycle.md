@@ -46,6 +46,8 @@ If a Canvas handoff supplied `radius_report_modeling_failure` arguments, call it
 
 Only exit `1` permits repair. The checker fingerprints normalized exit `1` diagnostics and reports repeated model failures. Exit `2` retains the last model-failure fingerprint without repeat guidance; exit `0` clears it. A repeated model failure means the previous change was ineffective. Make a materially different fix or use the remaining budget to prove the schema cannot express the runtime requirement.
 
+Compiler diagnostics retain their primary source location as `uri:line:column` when Bicep supplies a usable column, or `uri:line` when it does not. A missing location is not inferred from another diagnostic or secondary location. Columns improve location fidelity only; they do not change validation decisions or the repair budget.
+
 A completed final attempt with model diagnostics still returns exit `1`; the next invocation is refused with exit `2`. Broken bookkeeping also returns exit `2`. When validation is unavailable or refused, abort and stop under the checker contract. Do not retry validation, edit the model based on that result, write an origin record, or publish. Report the exact failure and that no application model was written. Never remove required runtime behavior to save a repair attempt.
 
 ## Origin record

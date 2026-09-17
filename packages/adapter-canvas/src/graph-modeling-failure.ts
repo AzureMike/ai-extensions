@@ -64,6 +64,9 @@ export function graphModelingFailureMessage(diagnostic: string): string {
   const match =
     /(?:^|[\\/])(?<file>[^\\/()[\]\r\n]+\.bicep)\((?<line>\d+)(?:,(?<column>\d+))?\)\s*:\s*(?:Error|Warning)\s+BCP\d{3}:\s*(?<detail>.*?)(?:\s+\[https?:\/\/.*)?$/iu.exec(
       line
+    ) ??
+    /(?:^|[\\/])(?<file>[^\\/()[\]\r\n]+\.bicep):(?<line>\d+)(?::(?<column>\d+))?\s*:\s*(?:Error|Warning)\s+BCP\d{3}:\s*(?<detail>.*?)(?:\s+\[https?:\/\/.*)?$/iu.exec(
+      line
     );
   if (!match?.groups) return GRAPH_MODELING_FAILURE_MESSAGE;
   const lineNumber = Number(match.groups.line);

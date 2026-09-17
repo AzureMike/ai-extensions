@@ -29,10 +29,15 @@ describe("graph modeling failure classification", () => {
 
   it.each([
     ["app.bicep(7,17)", "line 7, column 17"],
+    ["file:///fixture/app.bicep:7:41", "line 7, column 41"],
+    ["C:\\fixture\\app.bicep:7:1", "line 7, column 1"],
     ["app.bicep(7)", "line 7"],
+    ["file:///fixture/app.bicep:7", "line 7"],
     ["app.bicep(7,0)", "line 7"],
     ["app.bicep(0,17)", null],
     ["app.bicep(7,9007199254740992)", "line 7"],
+    ["app.bicep:7:9007199254740992", "line 7"],
+    ["app.bicep:0:17", null],
     ["app.bicep(9007199254740992,17)", null]
   ])("uses only safe positions from %s", (location, position) => {
     expect(
@@ -48,8 +53,8 @@ describe("graph modeling failure classification", () => {
 
   it("retains every diagnostic and summarizes the first precise location", () => {
     const diagnostic = [
-      "/fixture/app.bicep(7,17) : error BCP236: Invalid syntax.",
-      "/fixture/app.bicep(7,41) : error BCP236: Invalid syntax."
+      "file:///fixture/app.bicep:7:17: error BCP236: Invalid syntax.",
+      "file:///fixture/app.bicep:7:41: error BCP236: Invalid syntax."
     ].join("\n");
     const result = asGraphModelingFailure(
       new RadProcessError("rad exited with code 1", diagnostic, "")

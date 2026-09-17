@@ -75,4 +75,19 @@ describe("graph model repair", () => {
     expect(fenced).toContain("... (truncated)");
     expect(fenced.length).toBeLessThan(GRAPH_REPAIR_DIAGNOSTIC_CHAR_CAP + 200);
   });
+
+  it("preserves multiple precise compiler locations in the repair handoff", () => {
+    const diagnostic = [
+      "file:///fixture/app.bicep:7:17: error BCP236: Invalid syntax.",
+      "file:///fixture/app.bicep:7:41: error BCP236: Invalid syntax."
+    ].join("\n");
+    const preciseRequest = { ...request, diagnostic };
+    const message = graphRepairHandoffMessage(
+      preciseRequest,
+      beginGraphRepairAttempt({}, preciseRequest)
+    );
+
+    expect(message.prompt).toContain(diagnostic);
+    expect(message.displayPrompt).not.toContain("BCP236");
+  });
 });

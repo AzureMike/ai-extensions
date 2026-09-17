@@ -631,39 +631,52 @@ describe("graphs-planning writes real-loopback HIT", () => {
     expect(loggedErrors).toEqual([]);
   });
 
-  it("keeps app.bicep validation diagnostics out of the graph response", async () => {
-    const harness = start({
-      selections: { main: selectionOf("main", "resource app = {}") },
-      compileThrows: new Error("rad app graph failed", {
-        cause: new RadProcessError(
-          "rad exited with code 1",
-          "Error BCP035: missing required property",
-          ""
-        )
-      })
-    });
-    const entry = await container!.getOrCreate("panel-a");
+  it.each([
+    ["Error BCP035: missing required property", GRAPH_MODELING_FAILURE_MESSAGE],
+    [
+      "file:///fixture/app.bicep:7:17: Error BCP035: missing required property",
+      `${GRAPH_MODELING_FAILURE_MESSAGE} app.bicep line 7, column 17: missing required property`
+    ],
+    [
+      "file:///fixture/app.bicep:7: Error BCP035: missing required property",
+      `${GRAPH_MODELING_FAILURE_MESSAGE} app.bicep line 7: missing required property`
+    ],
+    [
+      "app.bicep(7,41): Error BCP035: missing required property",
+      `${GRAPH_MODELING_FAILURE_MESSAGE} app.bicep line 7, column 41: missing required property`
+    ]
+  ])(
+    "preserves the concise source location over HTTP for %s",
+    async (diagnostic, summary) => {
+      const harness = start({
+        selections: { main: selectionOf("main", "resource app = {}") },
+        compileThrows: new Error("rad app graph failed", {
+          cause: new RadProcessError("rad exited with code 1", diagnostic, "")
+        })
+      });
+      const entry = await container!.getOrCreate("panel-a");
 
-    const response = await post(
-      entry.baseUrl,
-      "/api/load-graph",
-      '{"repo":"octo/app"}'
-    );
+      const response = await post(
+        entry.baseUrl,
+        "/api/load-graph",
+        '{"repo":"octo/app"}'
+      );
 
-    expect(response.status).toBe(400);
-    expect(await response.json()).toEqual({
-      error: GRAPH_MODELING_FAILURE_MESSAGE,
-      modelingFailed: true,
-      attempt: 1,
-      maxAttempts: 3,
-      repairing: true,
-      repairExhausted: false
-    });
-    expect(harness.state.graphLoaded).toBeUndefined();
-    expect(loggedErrors).toEqual([
-      "[radius graph] modeling failed for octo/app@main: Error BCP035: missing required property"
-    ]);
-  });
+      expect(response.status).toBe(400);
+      expect(await response.json()).toEqual({
+        error: summary,
+        modelingFailed: true,
+        attempt: 1,
+        maxAttempts: 3,
+        repairing: true,
+        repairExhausted: false
+      });
+      expect(harness.state.graphLoaded).toBeUndefined();
+      expect(loggedErrors).toEqual([
+        `[radius graph] modeling failed for octo/app@main: ${diagnostic}`
+      ]);
+    }
+  );
 
   it("plans the graph through the recipe pack over a real socket", async () => {
     const harness = start({

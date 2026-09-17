@@ -318,15 +318,15 @@ function printDiagnostic(result) {
   }
   const level = typeof result.level === "string" ? result.level : "warning";
   const rule =
-    typeof result.ruleId === "string" && result.ruleId
-      ? ` ${result.ruleId}`
-      : "";
+    typeof result.ruleId === "string" && result.ruleId ?
+      ` ${result.ruleId}`
+    : "";
   const text =
-    typeof result.message?.text === "string" && result.message.text
-      ? result.message.text
-      : "Bicep reported a diagnostic.";
+    typeof result.message?.text === "string" && result.message.text ?
+      result.message.text
+    : "Bicep reported a diagnostic.";
   report(
-    `${location ? `${location}: ` : ""}${level}${rule}: ${text}${repairHint(result.ruleId, text)}`,
+    `${location ? `${location}: ` : ""}${level}${rule}: ${text}${repairHint(result.ruleId, text)}`
   );
 }
 
