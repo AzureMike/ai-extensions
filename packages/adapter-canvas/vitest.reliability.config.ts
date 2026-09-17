@@ -6,6 +6,7 @@ export default defineConfig({
       "src/deploy-artifacts.test.ts",
       "src/gh*.test.ts",
       "src/workspace.test.ts",
+      "src/runtime/{app-model-handoff,session}.test.ts",
       "src/server/create-canvas-server.test.ts",
       "src/server/services/discovery.test.ts",
       "src/server/services/github-environment-variable-rollback.test.ts",
@@ -15,7 +16,8 @@ export default defineConfig({
       "src/browser/graph/**/*.test.ts",
       "test/e2e-cloud/support/{cloud-command-port,cloud-fixture}.test.ts",
       "test/e2e/support/**/*.test.ts",
-      "test/integration/http/**/*.test.ts"
+      "test/integration/http/**/*.test.ts",
+      "test/integration/runtime/runtime-contracts.test.ts"
     ],
     environment: "node",
     testTimeout: 15_000
