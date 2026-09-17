@@ -55,7 +55,7 @@ const MODEL_CONTRACT_VERSION = 2;
 const RESOURCE_ENVELOPE =
   "Author name and properties; location and tags are optional. id, apiVersion, type, systemData, and top-level provisioningState are read-only.";
 const SCHEMA_FORMAT =
-  "Entries are properties-relative path:type. ! required; ro read-only; wo write-only; secret sensitive; [] array item; * map value; {name} discriminated variant; |N oneOf branch. Objects are closed unless followed by *. When present, recipe.outputPaths lists proven read-only paths; recipe.managedOutputPaths are Radius-generated metadata, not Recipe module outputs. An absent outputPaths list for an opaque module means unknown, not no outputs. Do not read an unlisted ro property without separate proof.";
+  "Entries are properties-relative path:type. ! required; ro read-only; wo write-only; secret sensitive; [] array item; * map value; {name} discriminated variant; |N oneOf branch. Objects are closed unless followed by *. When present, recipe.outputPaths lists mapped output paths. Logical secrets.<key> outputs declare Secret data keys, not readable producer values. If recipe.managedOutputPaths includes secrets.name, use that producer property as secretName and the exact declared key in valueFrom.secretKeyRef; recipe.managedOutputPaths are Radius-generated metadata, not Recipe module outputs. An absent outputPaths list for an opaque module means unknown, not no outputs. Do not read an unlisted ro property without separate proof.";
 const GENERATED_ROOT =
   "https://raw.githubusercontent.com/radius-project/radius";
 const GENERATED_PATH = "hack/bicep-types-radius/generated";

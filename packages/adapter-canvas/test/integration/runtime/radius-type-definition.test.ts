@@ -48,7 +48,7 @@ const identity = {
 const modelResourceEnvelope =
   "Author name and properties; location and tags are optional. id, apiVersion, type, systemData, and top-level provisioningState are read-only.";
 const modelSchemaFormat =
-  "Entries are properties-relative path:type. ! required; ro read-only; wo write-only; secret sensitive; [] array item; * map value; {name} discriminated variant; |N oneOf branch. Objects are closed unless followed by *. When present, recipe.outputPaths lists proven read-only paths; recipe.managedOutputPaths are Radius-generated metadata, not Recipe module outputs. An absent outputPaths list for an opaque module means unknown, not no outputs. Do not read an unlisted ro property without separate proof.";
+  "Entries are properties-relative path:type. ! required; ro read-only; wo write-only; secret sensitive; [] array item; * map value; {name} discriminated variant; |N oneOf branch. Objects are closed unless followed by *. When present, recipe.outputPaths lists mapped output paths. Logical secrets.<key> outputs declare Secret data keys, not readable producer values. If recipe.managedOutputPaths includes secrets.name, use that producer property as secretName and the exact declared key in valueFrom.secretKeyRef; recipe.managedOutputPaths are Radius-generated metadata, not Recipe module outputs. An absent outputPaths list for an opaque module means unknown, not no outputs. Do not read an unlisted ro property without separate proof.";
 const managedVersion = { version: identity.version, commit: identity.commit };
 const generatedRoot = "https://raw.githubusercontent.com/radius-project/radius";
 const fixtureIndex = JSON.parse(
@@ -1785,6 +1785,169 @@ describe("command boundary", () => {
         }
       }).managedOutputPaths
     ).toBeUndefined();
+  });
+
+  describe("logical Secret output instructions", () => {
+    const definition =
+      "outputs: {\n  endpoint: 'endpoint'\n  secrets: {\n    connectionString: 'connectionString'\n  }\n}";
+
+    it.each([
+      [
+        "mapped managed Secret",
+        { status: "available", definition },
+        true,
+        ["endpoint", "secrets", "secrets.connectionString", "secrets.name"],
+        ["secrets.name"]
+      ],
+      [
+        "scalar output",
+        {
+          status: "available",
+          definition: "outputs: {\n  endpoint: 'endpoint'\n}"
+        },
+        true,
+        ["endpoint"],
+        undefined
+      ],
+      [
+        "opaque module",
+        {
+          status: "available",
+          definition: "source: 'example.invalid/module:v1'"
+        },
+        true,
+        undefined,
+        undefined
+      ],
+      [
+        "writable Secret name",
+        { status: "available", definition },
+        false,
+        ["endpoint", "secrets", "secrets.connectionString"],
+        undefined
+      ],
+      [
+        "absent Secret name",
+        { status: "available", definition },
+        undefined,
+        ["endpoint", "secrets", "secrets.connectionString"],
+        undefined
+      ],
+      [
+        "missing Recipe",
+        { status: "notFound", message: "No exact Recipe." },
+        true,
+        undefined,
+        undefined
+      ],
+      [
+        "unavailable Recipe",
+        { status: "unavailable", message: "Recipe unavailable." },
+        true,
+        undefined,
+        undefined
+      ]
+    ] as const)(
+      "preserves the %s contract through the formatter and CLI",
+      async (_label, recipe, readOnly, outputPaths, managedOutputPaths) => {
+        const resource = {
+          type: "Radius.Test/services",
+          apiVersion: "2025-08-01-preview",
+          schema: {
+            properties: {
+              properties: {
+                properties: {
+                  endpoint: { type: "string", readOnly: true },
+                  password: {
+                    type: "string",
+                    writeOnly: true,
+                    sensitive: true
+                  },
+                  secrets: {
+                    type: "object",
+                    readOnly: true,
+                    properties: {
+                      connectionString: { type: "string", readOnly: true },
+                      ...(readOnly === undefined ?
+                        {}
+                      : { name: { type: "string", readOnly } })
+                    }
+                  }
+                }
+              }
+            }
+          },
+          recipe
+        };
+        const contract = {
+          contractVersion: 1,
+          extension: identity.extension,
+          resources: [resource],
+          notFound: []
+        };
+        const original = structuredClone(contract);
+        const expected = {
+          contractVersion: 2,
+          resourceEnvelope: modelResourceEnvelope,
+          schemaFormat: modelSchemaFormat,
+          resources: [
+            {
+              type: resource.type,
+              apiVersion: resource.apiVersion,
+              propertySchema: [
+                "endpoint:string,ro",
+                "password:string,wo,secret",
+                "secrets:object,ro",
+                "secrets.connectionString:string,ro",
+                ...(readOnly === undefined ?
+                  []
+                : [`secrets.name:string${readOnly ? ",ro" : ""}`])
+              ],
+              recipe: {
+                ...recipe,
+                ...(outputPaths === undefined ? {} : { outputPaths }),
+                ...(managedOutputPaths === undefined ?
+                  {}
+                : { managedOutputPaths })
+              }
+            }
+          ],
+          notFound: []
+        };
+        const staging = stagingDirectory();
+        let stdout = "";
+        let stderr = "";
+
+        expect(resolver.formatModelContract(contract)).toEqual(expected);
+        const status = await resolver.main(
+          ["--staging", staging, resource.type],
+          {
+            stdout: { write: (text: string) => (stdout += text) },
+            stderr: { write: (text: string) => (stderr += text) },
+            resolve: async () => contract
+          }
+        );
+
+        expect(status).toBe(0);
+        expect(stdout).toBe(`${JSON.stringify(expected)}\n`);
+        expect(stderr).toBe("");
+        expect(contract).toEqual(original);
+        expect(
+          JSON.parse(
+            fs.readFileSync(path.join(staging, "resolved-types.json"), "utf8")
+          )
+        ).toEqual({
+          contractVersion: 1,
+          types: {
+            [`${resource.type}@${resource.apiVersion}`]: {
+              endpoint: false,
+              password: true,
+              secrets: false
+            }
+          }
+        });
+      }
+    );
   });
 
   it("keeps union and discriminator branches explicit without repeating their base", () => {
