@@ -2,6 +2,8 @@
 
 Secret behavior is part of the exact resource type, extension, recipe, and container contract. Do not copy a secret path or key from another type or version.
 
+Read [secrets-handling.md](secrets-handling.md), [secret-inputs.md](secret-inputs.md), [secret-runtime.md](secret-runtime.md) in full as one reference. These required companion parts can be read in the same parallel batch.
+
 ## Resolve the contract first
 
 For every secret, inspect:
@@ -15,297 +17,12 @@ Preserve the application's exact environment contract. Connection projection use
 
 Never hardcode passwords, tokens, keys, or credential-bearing URLs. Use a `@secure()` parameter for developer-supplied Bicep inputs, including values placed in an authored `Radius.Security/secrets` resource. Prefer an authored Secret with `secretKeyRef` or a compatible Secret connection. Bind the secure parameter directly to `env.value` only as an explicit schema-supported or legacy compatibility fallback required by the existing native contract: it is weaker because the resolved value is stored in the Radius container resource and generated Pod specification.
 
-## Developer-supplied secret inputs
-
-Decide each credential input from the schema, never from the property's name. A credential input property is one of two kinds:
-
-- **Inline sensitive value** — the schema marks the property `x-radius-sensitive: true`. Assign the `@secure()` parameter directly to that property, as `Radius.Data/mySqlDatabases.password` requires.
-- **Secret resource reference** — the schema types the property as a plain, non-sensitive `string` whose description identifies it as the resource ID of a `Radius.Security/secrets` resource. Author or reuse that Secret and assign `<secret>.id`, as `Radius.Messaging/rabbitMQ.password` requires. Never assign a `@secure()` parameter to a reference property.
-- If the schema defines no credential input, do not invent one. Where a reference property is optional and the application does not need to own the credential, omitting it and consuming the Recipe-generated credential is valid.
-
-A property named `password` may be either kind, and a reference property may be named `password`, `passwordSecret`, or `secretName`. The name carries no information — read the schema. Assigning a raw credential to a reference property is a deployment failure rather than a style difference: the Recipe derives the Kubernetes Secret name for `secretKeyRef` from that value, and Kubernetes rejects a password as an RFC 1123 subdomain.
-
-These two kinds classify the envelope's own credential properties. Sensitivity is not confined to that level: see [Sensitivity marks a schema node, not a top-level property](#sensitivity-marks-a-schema-node-not-a-top-level-property) for the nested and object cases, and [What counts as a secure value](#what-counts-as-a-secure-value) for what may be assigned once a node is marked.
-
-Two checks enforce this from different evidence, and neither substitutes for the other:
-
-- **Bicep** rejects a value it cannot prove secure on a node the compiled type marks sensitive, at any depth and for generated custom types too, as `use-secure-value-for-secure-inputs`. This is the direction that catches a hardcoded credential.
-- **`validate-bicep.mjs`** covers the opposite direction, which Bicep cannot see: it reads the sensitivity `show-radius-type.mjs` staged for every resolved type and fails the compile when a `@secure()` parameter is assigned directly to a property the schema does *not* mark sensitive, naming the resource and property it rejected. It reads the compiled template, so it sees a whole `@secure()` parameter assigned to a property of a resource's properties envelope; a credential that reaches such a property through a variable, a string interpolation, or a nested object is not reported and remains yours to get right.
-
-Neither check inspects what an authored Secret puts inside: the data-key contract below is not verified anywhere, so a Secret with the wrong key casing compiles, passes both checks, and still fails at container start.
-
-When the workload consumes a developer-supplied credential through connection projection, author or reuse a `Radius.Security/secrets` resource and connect the workload to its resource ID. A sensitive backing-resource input is not readable back from that resource, so do not connect to the backing resource and expect Radius to project the supplied value. Developer-owned inputs remain inputs and must not be returned through Recipe `result.secrets`, as reflected by the PostgreSQL and MySQL ownership corrections in [resource-types-contrib#298](https://github.com/radius-project/resource-types-contrib/pull/298) and [resource-types-contrib#315](https://github.com/radius-project/resource-types-contrib/pull/315):
-
-```bicep
-@secure()
-param password string
-
-resource mysql 'Radius.Data/mySqlDatabases@2025-08-01-preview' = {
-  name: 'mysql'
-  properties: {
-    environment: environment
-    application: app.id
-    username: 'myadmin'
-    password: password
-  }
-}
-
-resource mysqlCredentials 'Radius.Security/secrets@2025-08-01-preview' = {
-  name: 'mysql-client-credentials'
-  properties: {
-    environment: environment
-    application: app.id
-    data: {
-      password: {
-        value: password
-      }
-    }
-  }
-}
-
-resource apiContainer 'Radius.Compute/containers@2025-08-01-preview' = {
-  name: 'api'
-  properties: {
-    environment: environment
-    application: app.id
-    containers: {
-      api: {
-        image: apiImage.properties.imageReference
-      }
-    }
-    connections: {
-      mysql: {
-        source: mysql.id
-      }
-      mysqlSecret: {
-        source: mysqlCredentials.id
-      }
-    }
-  }
-}
-```
-
-The `mysql` producer connection projects verified ordinary outputs such as `CONNECTION_MYSQL_HOST` and `CONNECTION_MYSQL_PORT`. The authored Secret connection injects `CONNECTION_MYSQLSECRET_PASSWORD`: `MYSQLSECRET` is the `mysqlSecret` connection map key uppercased without inserting a separator, and `PASSWORD` is the uppercased authored `password` data key. The names are illustrative. Confirm the resource properties, connection keys, Secret data key, generated environment names, and required value format against the target version and source. Keep the authored Secret name distinct from Recipe-owned Kubernetes Secret names. If the application requires a different native name, model an explicit supported binding rather than assuming the connection renames it.
-
-### The same property name, the opposite form
-
-`Radius.Messaging/rabbitMQ` also defines a property named `password`, but its schema types it as a plain, non-sensitive `string` whose description identifies it as the resource ID of a `Radius.Security/secrets` resource holding the broker password under the data key `password`. It therefore takes `<secret>.id` — the exact opposite of the identically named `Radius.Data/mySqlDatabases.password` above, which takes the secure parameter inline:
-
-```bicep
-@secure()
-param rabbitmqPassword string
-
-resource rabbitmqCredentials 'Radius.Security/secrets@2025-08-01-preview' = {
-  name: 'rabbitmq-credentials'
-  properties: {
-    environment: environment
-    application: app.id
-    data: {
-      password: {
-        value: rabbitmqPassword
-      }
-    }
-  }
-}
-
-resource rabbitmq 'Radius.Messaging/rabbitMQ@2025-08-01-preview' = {
-  name: 'rabbitmq'
-  properties: {
-    environment: environment
-    application: app.id
-    queue: 'orders'          // derived from source (e.g. ORDER_QUEUE_NAME)
-    username: 'myadmin'      // authored broker administrator; consumers authenticate as this same value
-    password: rabbitmqCredentials.id
-  }
-}
-```
-
-Writing `password: rabbitmqPassword` here deploys a broken application: the Recipe reads the property as a resource ID and uses its last segment as the Kubernetes Secret name in `secretKeyRef`, so the supplied password becomes the looked-up Secret name and Kubernetes rejects the Deployment because a password is not a lowercase RFC 1123 subdomain. Because the property is optional, omitting it entirely and consuming the Recipe-generated credential is also valid. Resolve every credential property's kind from `show-radius-type.mjs` output before assigning it; two types that share a property name do not share a convention.
-
-### The data key is part of the contract
-
-Pointing at the right Secret is only half of a reference property's contract. When a schema property references a `Radius.Security/secrets` resource, the authored Secret must expose the value under the exact data key the consuming schema names, matching case. The key is fixed by the consuming type and its Recipe, not chosen by the model.
-
-- Data keys are case-sensitive. Do not uppercase them by convention, and do not assume the key matches the property name, the resource name, or the application's environment-variable name.
-- Read the required key from the consuming type's schema description, not from the native variable the application happens to call it. `Radius.Messaging/rabbitMQ.password` is documented as the resource ID of the `Radius.Security/secrets` resource that holds the broker password under the data key `password`, so the authored key is exactly `password`.
-- Every `secretKeyRef.key` that reads the same authored Secret must use that same exact key. The uppercased form appears only in a generated `CONNECTION_<CONNECTION>_<SECRETKEY>` variable name; it is a projection of the key, never a replacement for it.
-
-In the example above the authored data key is `password`, the broker receives `rabbitmqCredentials.id`, and a container reading the same Secret uses the identical lowercase key:
-
-```bicep
-RABBITMQ_PASSWORD: {
-  valueFrom: {
-    secretKeyRef: {
-      secretName: rabbitmqCredentials.name
-      key: 'password'
-    }
-  }
-}
-```
-
-Authoring that data key as `PASSWORD` fails even though the Bicep compiles and the resource ID is correct. The RabbitMQ Kubernetes Recipe reads a hardcoded lowercase `password` key from the resolved Secret, so the broker Pod resolves the right Secret, finds no `password` entry, and never starts — a `CreateContainerConfigError` rather than an admission failure. A key-casing mismatch is not cosmetic, and it survives every check that only validates the resource ID.
-
-### Sensitivity marks a schema node, not a top-level property
-
-`x-radius-sensitive: true` belongs to the schema node it is written on, which is not always a property of the properties envelope. Read the resolved schema recursively and treat every **writable** node it marks `"sensitive": true` as taking a secure value, whatever its depth:
-
-- a top-level string, as in `Radius.Data/mySqlDatabases.password`;
-- a leaf inside an open map, as in `Radius.Security/secrets.data.<key>.value` — the enclosing `data` is *not* marked, so a rule that reads only the envelope's own properties misses the value that actually holds the credential;
-- a leaf inside a nested object, such as a custom type's `tls.clientKey`; and
-- a whole object, which compiles to a `secureObject` and takes one `@secure() param object` rather than an object literal whose fields are individually secure.
-
-Sensitivity says how a value is handled, not who supplies it, so it is not on its own an instruction to assign anything. A node the schema also marks `"readOnly": true` is a sensitive **output**: the Recipe populates it, it is never set in `app.bicep`, and it takes no `@secure()` parameter. Read it back through the Recipe's `result.secrets` contract described in [Recipe-generated secret results](#recipe-generated-secret-results). Decide from the two flags together — `sensitive` and `readOnly` — because a schema can and does mark both on one node.
-
-The same rule governs the custom types this skill authors. `x-radius-sensitive` in `custom-types.yaml` is compiled into `custom-types.tgz`, so a generated `Radius.Resources/*` type carries the flag exactly as a predefined type does — including on a `readOnly: true` output, which stays unassigned for the same reason.
-
-### What counts as a secure value
-
-Only a `@secure()` parameter referenced **by name** — directly, or through a `var` that aliases it. Everything else is rejected, whatever it holds:
-
-| Assignment                                                         | Secure                                                                    |
-|--------------------------------------------------------------------|---------------------------------------------------------------------------|
-| `password: dbPassword` where `dbPassword` is a `@secure() param`   | yes                                                                       |
-| `password: alias` where `var alias = dbPassword`                   | yes                                                                       |
-| `password: 'hunter2'`                                              | no — a literal                                                            |
-| `password: plainPassword` where `plainPassword` is a plain `param` | no — not marked `@secure()`                                               |
-| `password: '${dbPassword}'`                                        | no — interpolation discards secureness, even when every operand is secure |
-
-Because interpolation discards secureness, never assemble a credential-bearing string such as a connection URL in Bicep. Bind the credential on its own and compose the final value only through a path the pinned application source proves it supports, as [Runtime composition](#runtime-composition) describes. That path is not guaranteed to exist: the application is not yours to change, so when it accepts only one credential-bearing value and no verified entrypoint or helper can compose it safely, report the contract gap rather than falling back to interpolation.
-
-Give a `@secure()` parameter no default value: a default would commit the credential to the application definition, which is the outcome the parameter exists to prevent.
-
-A nested sensitive leaf is assigned exactly like a top-level one:
-
-```bicep
-@secure()
-param dbPassword string
-
-resource credentials 'Radius.Security/secrets@2025-08-01-preview' = {
-  name: 'db-credentials'
-  properties: {
-    environment: environment
-    application: app.id
-    data: {
-      password: {
-        value: dbPassword     // data.<key>.value is the sensitive node
-      }
-    }
-  }
-}
-```
-
-The compiler enforces this for predefined and generated custom types alike: Bicep reports `use-secure-value-for-secure-inputs` for any value it cannot prove secure. Radius emits that finding with no severity, so `validate-bicep.mjs` prints it as a `warning` and still **fails** the build — it is not advisory, and it spends a repair attempt. Two related rules apply to the parameter itself. `secure-parameter-default` rejects a hardcoded default on a secure parameter. `secure-secrets-in-params` is a **name** heuristic — it reports that a parameter *may* be a credential "according to its name" — so it has two different repairs: add `@secure()` when the parameter really carries the credential, but rename it when it carries a `Radius.Security/secrets` resource ID instead. Adding `@secure()` to a reference parameter trades this warning for a `secure-parameter-target` failure, because a reference property is not sensitive and must not receive a secure parameter.
-
-## Recipe-generated secret results
-
-Some Recipes generate sensitive values such as access keys, URLs, or connection strings through `result.secrets`. Their contract varies:
-
-- a schema version may expose a public managed-secret name and declared `result.secrets` keys;
-- another version may use a different output shape or key names; or
-- the configured recipe may not expose the value in a form containers can bind.
-
-Use a connection to the producer resource for the standard connection environment:
-
-```bicep
-connections: {
-  service: {
-    source: service.id
-  }
-}
-```
-
-If the Recipe declares `apiKey` in `result.secrets`, Radius injects it as secret-backed `CONNECTION_SERVICE_APIKEY`. The `APIKEY` suffix is the uppercased exact result key; it does not come from a guessed resource property. Connect only to `service.id`, not `service.properties.secrets.name`.
-
-Radius materializes Recipe `result.secrets` entries into a managed Kubernetes Secret and keeps `<producer>.properties.secrets.name` public as that Kubernetes Secret name. Use it only when the application requires an explicit custom environment name:
-
-The batched resolver lists this reserved path in `recipe.managedOutputPaths` when both the schema and inline Recipe prove it. It is synthesized by Radius, so it does not appear as a literal `secrets.name` in the Recipe module's `outputs` mapping.
-
-```bicep
-APP_API_KEY: {
-  valueFrom: {
-    secretKeyRef: {
-      secretName: service.properties.secrets.name
-      key: 'apiKey'
-    }
-  }
-}
-```
-
-The key must be declared by the exact Recipe `result.secrets` contract. Never create an authored `Radius.Security/secrets` wrapper whose `data` copies a Recipe-generated value from a resource property. An authored secret is not an adapter for a missing or different output shape.
-
-The public Recipe-managed property is `properties.secrets.name`; do not invent an alternate nested identifier or guess a key. If the exact schema/Recipe does not expose the required managed-secret name and key, report the gap. If a mutable compiled extension disagrees with that exact contract, report version drift rather than inventing a convenience property or wrapper.
-
-If the exact contract cannot deliver a required secret by reference, report the schema/recipe gap rather than placing it in plain state.
-
-## Runtime composition
-
-Applications often require one URL or config value that embeds a secret. Bicep interpolation would materialize the combined value before the container starts, so prefer runtime composition:
-
-1. Bind the secret into a helper environment variable: through an authored-secret connection for a developer-supplied credential, through a producer connection for a Recipe-generated standard `CONNECTION_*` variable, or through `secretKeyRef` from `<producer>.properties.secrets.name` for an explicit custom Kubernetes environment name.
-2. Bind nonsecret host, port, database, and username values from verified outputs or literals.
-3. Make sure the helper actually reaches the container's environment before the value that reads it. Authoring order does not decide this — see below.
-4. Compose the final app-native value in the container runtime or let the application construct it. The final key and syntax must exactly match the selected pinned-source contract.
-
-For a non-URL format, the application or entrypoint can compose a generated secret-backed variable such as `CONNECTION_DATABASE_PASSWORD` with separately bound nonsecret values. When preserving a pre-existing native name for a Recipe-generated credential instead, bind the declared Recipe result through an explicit `secretKeyRef`:
-
-```bicep
-env: {
-  APP_DATABASE_OPTIONS: {
-    // cache is the resource symbol; substitute your actual resource
-    value: 'host=${cache.properties.host};password=$(DB_PASSWORD)'
-  }
-  DB_PASSWORD: {
-    valueFrom: {
-      secretKeyRef: {
-        secretName: cache.properties.secrets.name
-        key: 'password'
-      }
-    }
-  }
-}
-```
-
-`DB_PASSWORD` sorts after the value that reads it, and still resolves: the recipe emits every `secretKeyRef` variable ahead of every plain value, so a recipe-generated credential is bound under the exact name the application reads and ordering never enters into it.
-
-Kubernetes expands `$(VAR_NAME)` only from variables earlier in the container's environment list, and the recipe decides that order, not the order you write the `env` map in. The containers recipe builds the list with `items()`, which sorts by key, so authored order is discarded — writing the helper first buys nothing.
-
-What the Kubernetes recipe does guarantee is that `secretKeyRef` variables are emitted before plain `value` variables. So a composed value can always read a secret-backed helper, whatever the two keys are called, and that is the form to prefer.
-
-Composition must change the representation the application receives. Passing an aggregate Recipe value such as `url` unchanged through `$(HELPER)` into an address-part setting is only an alias, not composition, and preserves the same incompatibility as a direct binding. Use helpers for schema-declared parts that a proven application or entrypoint actually assembles, not to bypass a rejected aggregate binding.
-
-Two plain values are sorted against each other by name. This still matters when preserving an existing developer-supplied `@secure()` `env.value` fallback: if the application dictates both names and the helper's does not sort first, that composition cannot be expressed — report it rather than renaming a key the application reads. On a verified compatible Kubernetes Container Recipe, an explicitly requested migration may instead use an authored or reused Secret connection, whose generated value is secret-backed and emitted before plain values. `validate-bicep.mjs` fails the model when a plain value reads a plain helper that cannot reach it.
-
-Verify this against the exact target recipe rather than carrying it over: the Azure ACI recipe emits every variable in one name-sorted list with no such separation, and `$(VAR_NAME)` expansion is a Kubernetes container behavior to begin with, so this composition pattern does not hold on every platform.
-
-Preserve escaping through Bicep and any shell/config layer, and confirm the image has every shell or utility used by an entrypoint wrapper. The inverse direction — the contract exposes one aggregate value and the application wants the parts — is governed by [Credential shape](#credential-shape); it is not symmetric with composition and is usually a contract gap to report.
-
-Credentials embedded in URLs must be URL-encoded. Kubernetes variable expansion does not encode them; use application logic or a verified runtime helper. If safe encoding cannot be guaranteed, do not generate a fragile connection string.
-
-Do not assume an unconstrained developer-supplied password is URL-safe, recommend a restricted character set as a workaround, or treat shell expansion as encoding. Prefer source-native decomposed host, port, database, username, password, and TLS flags or fields when the application safely assembles the final client value.
-
-### Authored secrets are not composition engines
-
-`Radius.Security/secrets` can carry an exact application secret, but it does not turn Bicep interpolation into runtime composition. Never manufacture an aggregate credential-bearing URL or configuration in authored `data.value`, regardless of whether its other parts come from outputs, parameters, variables, or literals.
-
-When the application accepts only one credential-bearing value, choose one proven path:
-
-1. Bind an exact, source-compatible connection string from schema-declared managed-secret metadata.
-2. Bind the parts separately and use a verified application, entrypoint, or helper that safely encodes and composes them at runtime.
-
-If neither path exists, report the schema/application contract gap and do not emit a definition described as deployable.
-
 ## Credential shape
 
 A resource type being available does not prove its credential fits the client. Before wiring any dependency that authenticates, resolve both sides:
 
 - **What the contract exposes.** Use the batched resolver's exact `resources[].schema` for nonsecret read-only outputs and managed-secret metadata. Then inspect the selected Recipe that maps those values. Use `resources[].recipe.definition` for the managed-default Azure profile; when explicit target evidence selects an override, inspect that exact target Recipe instead. Prove target-Environment registration separately. `host` and `port` are an address, not a credential.
 - **What the application consumes.** The exact native key and the exact value format the pinned client parses. Record literal examples from the selected manifest, chart, Compose file, or configuration alongside the source read and client constructor. A configured `host:port` value proves an address shape; do not replace it directly with a Recipe `url` or `connectionString` unless their aggregate syntax matches. A package name without a checked-in consumer is not evidence, but an exact pinned dependency plus the checked-in call site that passes the value to that client's configuration API identifies the parser contract and permits using that client's documented syntax. Combine that evidence with checked-in parser code, selected-profile literals, and the selected Recipe's auth and output mappings.
-
-Trace every app-native environment or configuration value from the source read to the API that consumes it. Determine the exact syntax that parser accepts, including separators, option names, encoding, TLS flags, and whether it expects one aggregate value or discrete fields. Bind a Recipe output directly only when it matches that exact format. If it does not, inspect schema-declared parts and compose the native value only through a safe runtime path already supported by the checked-in application or pinned image. A matching variable name, string type, or protocol does not prove compatibility; when no proven conversion exists, report the gap and stop before publishing the model.
-
-As a conservative executable backstop, `validate-bicep.mjs` rejects a Recipe-managed aggregate secret key such as `url`, `uri`, `dsn`, or `connectionString` when it reaches an address-part environment name such as `ADDR`, `ADDRESS`, `HOST`, or `PORT`, either directly or through a same-container `$(HELPER)` pass-through. It also follows the managed secret name and key through local-module parameters. This `aggregate-secret-alias` check recognizes only those explicit key and name tokens and catches a contradiction visible in the compiled model; a clean result is not evidence that another binding is compatible. Do not rename the environment variable or secret key to evade it.
-
-An application can give an aggregate URL an address-shaped name while still parsing it as a URL. The source contract remains authoritative, but the conservative checker cannot encode that proof and rejects the ambiguous direct or pass-through form. Use another source-supported aggregate input when one exists, perform a real runtime transformation from schema-declared parts when the pinned application or image supports it, or report the checker limitation and stop. A helper that forwards the aggregate unchanged is not a transformation.
 
 First look for a direct match: aggregate to aggregate or part to part. If an aggregate output does not match, inspect every schema-declared discrete output before refusing. A Recipe that exposes `host`, `port`, and a credential such as `accessKey` can support an application that reads one aggregate setting when the pinned client parser accepts a safely composed value and the runtime composition rules below are satisfied. Do not require a checked-in credential-bearing literal, because credentials must not be committed. If the client instead needs parts and the Recipe exposes only an aggregate, consider runtime decomposition under the stricter rules below. Classify compatibility as unknown only after direct binding and every supported composition or decomposition path have been exhausted.
 
@@ -363,3 +80,35 @@ Do not return the definition as deployable with the dependency unwired, silently
 - Runtime composition preserves dependency order, escaping, encoding, and image entrypoint behavior.
 - The credential shape the exact contract exposes directly matches the shape the pinned client parses, or every schema-declared discrete output and supported runtime composition or decomposition path was considered before the mismatch was reported. Address outputs stand alone only where the exact target Recipe is proven to provision no credential and the reply says so. No undeclared discrete property or secret key is invented, and no runtime split is assumed for an image with no shell.
 - A final credential-bearing URL/config is bound from a matching managed secret or safely composed at runtime; it is never reconstructed in Bicep or an authored secret.
+
+## Developer-supplied secret inputs
+
+See [Developer-supplied secret inputs](secret-inputs.md#developer-supplied-secret-inputs).
+
+### The same property name, the opposite form
+
+See [The same property name, the opposite form](secret-inputs.md#the-same-property-name-the-opposite-form).
+
+### The data key is part of the contract
+
+See [The data key is part of the contract](secret-inputs.md#the-data-key-is-part-of-the-contract).
+
+### Sensitivity marks a schema node, not a top-level property
+
+See [Sensitivity marks a schema node, not a top-level property](secret-inputs.md#sensitivity-marks-a-schema-node-not-a-top-level-property).
+
+### What counts as a secure value
+
+See [What counts as a secure value](secret-inputs.md#what-counts-as-a-secure-value).
+
+## Recipe-generated secret results
+
+See [Recipe-generated secret results](secret-runtime.md#recipe-generated-secret-results).
+
+## Runtime composition
+
+See [Runtime composition](secret-runtime.md#runtime-composition).
+
+### Authored secrets are not composition engines
+
+See [Authored secrets are not composition engines](secret-runtime.md#authored-secrets-are-not-composition-engines).

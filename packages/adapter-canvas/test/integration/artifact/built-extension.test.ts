@@ -571,11 +571,26 @@ describe("P0-C built Radius extension artifact", () => {
     const connectionGuidance = readGuidance(
       "references/connection-conventions.md"
     );
-    const structureGuidance = readGuidance(
-      "references/bicep-structure-rules.md"
-    );
-    const secretsGuidance = readGuidance("references/secrets-handling.md");
-    const runtimeGuidance = readGuidance("references/runtime-contract.md");
+    const structureGuidance = [
+      "references/bicep-structure-rules.md",
+      "references/bicep-image-structure.md",
+      "references/bicep-service-structure.md"
+    ]
+      .map(readGuidance)
+      .join("\n");
+    const secretsGuidance = [
+      "references/secrets-handling.md",
+      "references/secret-inputs.md",
+      "references/secret-runtime.md"
+    ]
+      .map(readGuidance)
+      .join("\n");
+    const runtimeGuidance = [
+      "references/runtime-contract.md",
+      "references/runtime-bindings.md"
+    ]
+      .map(readGuidance)
+      .join("\n");
     const skillGuidance = readGuidance("SKILL.md");
     const redisExample = bicepBlocks.find(
       (block) =>
@@ -817,7 +832,12 @@ describe("P0-C built Radius extension artifact", () => {
     const readGuidance = (relativePath: string): string =>
       readFileSync(join(DIST_SKILL, relativePath), "utf8");
     const skillGuidance = readGuidance("SKILL.md");
-    const runtimeGuidance = readGuidance("references/runtime-contract.md");
+    const runtimeGuidance = [
+      "references/runtime-contract.md",
+      "references/runtime-bindings.md"
+    ]
+      .map(readGuidance)
+      .join("\n");
 
     for (const guidance of [skillGuidance, runtimeGuidance]) {
       expect(guidance).toContain(
@@ -851,7 +871,12 @@ describe("P0-C built Radius extension artifact", () => {
     const readGuidance = (relativePath: string): string =>
       readFileSync(join(DIST_SKILL, relativePath), "utf8");
     const skillGuidance = readGuidance("SKILL.md");
-    const runtimeGuidance = readGuidance("references/runtime-contract.md");
+    const runtimeGuidance = [
+      "references/runtime-contract.md",
+      "references/runtime-bindings.md"
+    ]
+      .map(readGuidance)
+      .join("\n");
 
     expect(skillGuidance).toContain("documented operator host-port mapping");
     expect(skillGuidance).toMatch(
@@ -883,10 +908,20 @@ describe("P0-C built Radius extension artifact", () => {
     assertCurrentArtifact();
     const readGuidance = (relativePath: string): string =>
       readFileSync(join(DIST_SKILL, relativePath), "utf8");
-    const secretsGuidance = readGuidance("references/secrets-handling.md");
-    const structureGuidance = readGuidance(
-      "references/bicep-structure-rules.md"
-    );
+    const secretsGuidance = [
+      "references/secrets-handling.md",
+      "references/secret-inputs.md",
+      "references/secret-runtime.md"
+    ]
+      .map(readGuidance)
+      .join("\n");
+    const structureGuidance = [
+      "references/bicep-structure-rules.md",
+      "references/bicep-image-structure.md",
+      "references/bicep-service-structure.md"
+    ]
+      .map(readGuidance)
+      .join("\n");
     const skillGuidance = readGuidance("SKILL.md");
 
     for (const guidance of [secretsGuidance, structureGuidance]) {
@@ -1012,7 +1047,13 @@ describe("P0-C built Radius extension artifact", () => {
     assertCurrentArtifact();
     const readGuidance = (relativePath: string): string =>
       readFileSync(join(DIST_SKILL, relativePath), "utf8");
-    const secretsGuidance = readGuidance("references/secrets-handling.md");
+    const secretsGuidance = [
+      "references/secrets-handling.md",
+      "references/secret-inputs.md",
+      "references/secret-runtime.md"
+    ]
+      .map(readGuidance)
+      .join("\n");
     const skillGuidance = readGuidance("SKILL.md");
 
     expect(secretsGuidance).toContain(
@@ -1097,7 +1138,7 @@ describe("P0-C built Radius extension artifact", () => {
     // it — that false confidence is the failure mode this stack exists to fix.
     // The guidance now names two checks, so the caveat has to exclude both.
     const secretsGuidance = readFileSync(
-      join(DIST_SKILL, "references", "secrets-handling.md"),
+      join(DIST_SKILL, "references", "secret-inputs.md"),
       "utf8"
     );
     expect(secretsGuidance).toContain(
