@@ -29,6 +29,7 @@ import type { MissingModelHandoffClaims } from "./missing-model-handoff-claims.j
 import { missingModelHandoffTarget } from "./missing-model-handoff-claims.js";
 import { GRAPH_APP_BICEP_IDLE_TIMEOUT_MS } from "../graph-progress-contract.js";
 import { appModelTargetKey } from "../app-model-authoring-failure.js";
+import { errorMessage } from "./util.js";
 
 export interface AppModelHandoffRequest {
   repo: string;
@@ -75,6 +76,8 @@ export interface AppModelHandoffDependencies {
     context: CanvasState,
     waitStartedAtMs?: number
   ): Promise<boolean>;
+  // Only a confirmed idle local session can shorten the duplicate-run grace.
+  sessionIdle(): Promise<boolean>;
   // Injected so the grace window below is driven by a fake clock in tests, and
   // so nothing here owns a timer.
   wait(ms: number): Promise<void>;
@@ -102,10 +105,9 @@ export type AppModelHandoff = (
 // exactly the duplicate this gate exists to prevent. The window spans the gap
 // between the render and the tool call, which is one agent decision long.
 //
-// Waiting costs nothing that the user sees. The handoff is fire-and-forget and
-// never blocks the HTTP response, the view keeps polling and renders the model
-// in place whenever it appears, and a handoff is only ever a request for work
-// that has not started.
+// A confirmed idle local session has no turn or background task that could
+// claim the model, so it can skip the remaining window. Busy, remote, and
+// unobservable sessions keep the original protection.
 export const MODELING_GRACE_WINDOW_MS = 15000;
 export const MODELING_GRACE_POLL_MS = 1000;
 const RECOVERY_WINDOW_MS = 60_000;
@@ -151,12 +153,26 @@ export function createAppModelHandoff(
     context: CanvasState,
     waitStartedAtMs?: number
   ): Promise<boolean> {
+    let sessionIdle = false;
+    // Probe alongside the existing window: an unavailable or stalled SDK must
+    // never extend it. A late reply cannot deliver a handoff or mutate claims.
+    void deps.sessionIdle().then(
+      (idle) => {
+        sessionIdle = idle;
+      },
+      (error: unknown) => {
+        deps.log(
+          `Radius could not verify session inactivity; retaining the modeling grace window: ${errorMessage(error)}`
+        );
+      }
+    );
     for (let waitedMs = 0; ; waitedMs += MODELING_GRACE_POLL_MS) {
       if (
         await deps.modelingInFlight(repo, branches, context, waitStartedAtMs)
       ) {
         return true;
       }
+      if (sessionIdle) return false;
       if (waitedMs >= MODELING_GRACE_WINDOW_MS) return false;
       await deps.wait(MODELING_GRACE_POLL_MS);
     }
@@ -304,6 +320,12 @@ export function createAppModelHandoff(
         settled = await Promise.all(
           targets.map((branch) => deps.resolveStatus(repo, branch, context))
         );
+        claimed = await deps.modelingInFlight(
+          repo,
+          targets,
+          context,
+          waitStartedAtMs
+        );
       } catch (error) {
         releaseReservation();
         throw error;
@@ -312,7 +334,10 @@ export function createAppModelHandoff(
         releaseReservation();
         return;
       }
-      if (settled.some((status) => status.freshness.status !== "missing")) {
+      if (
+        claimed ||
+        settled.some((status) => status.freshness.status !== "missing")
+      ) {
         releaseReservation();
         return;
       }

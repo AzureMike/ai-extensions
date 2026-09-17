@@ -35,6 +35,7 @@ import { createRadiusCanvasInstanceRegistry } from "./canvas-instance-registry.j
 import { errorMessage } from "./util.js";
 import type { RadiusExtensionDependencies } from "./dependencies.js";
 import type { SessionPort } from "./session.js";
+import { isLocalSessionIdle } from "./session.js";
 
 // The host reaps an idle extension process with a clean SIGTERM after ~10
 // minutes of no host<->extension JSON-RPC traffic. A user watching an open
@@ -217,6 +218,7 @@ export function createRadiusExtension(
         path: context.workspacePath,
         waitStartedAtMs
       }),
+    sessionIdle: () => isLocalSessionIdle(deps.session.get()),
     wait: (ms) => deps.clock.wait(ms),
     log: (message) => {
       try {

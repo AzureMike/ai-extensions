@@ -33,6 +33,10 @@ export interface SessionPort {
     canvas: {
       open(options: CanvasRpcOpenOptions): Promise<unknown>;
     };
+    metadata?: {
+      snapshot?: () => Promise<unknown>;
+      activity?: () => Promise<unknown>;
+    };
   };
   metadata?: { snapshot?: () => Promise<unknown> };
   // Additional SDK-defined members (teardown methods, Symbol.asyncDispose,
@@ -44,6 +48,37 @@ export interface SessionHolder {
   get(): SessionPort;
   tryGet(): SessionPort | undefined;
   set(session: SessionPort): void;
+}
+
+export async function isLocalSessionIdle(
+  session: SessionPort
+): Promise<boolean> {
+  const metadata = session.rpc.metadata;
+  if (!metadata?.snapshot || !metadata.activity) return false;
+  const snapshot = await metadata.snapshot();
+  if (
+    snapshot === null ||
+    typeof snapshot !== "object" ||
+    typeof Reflect.get(snapshot, "isRemote") !== "boolean"
+  ) {
+    throw new Error(
+      "Session metadata did not identify a local or remote session."
+    );
+  }
+  if (Reflect.get(snapshot, "isRemote")) return false;
+  const activity = await metadata.activity();
+  if (
+    activity === null ||
+    typeof activity !== "object" ||
+    typeof Reflect.get(activity, "hasActiveWork") !== "boolean" ||
+    typeof Reflect.get(activity, "abortable") !== "boolean"
+  ) {
+    throw new Error("Session metadata did not report valid activity flags.");
+  }
+  return (
+    Reflect.get(activity, "hasActiveWork") === false &&
+    Reflect.get(activity, "abortable") === false
+  );
 }
 
 export function createSessionHolder(): SessionHolder {

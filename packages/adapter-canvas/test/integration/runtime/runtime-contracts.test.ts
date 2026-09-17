@@ -961,6 +961,89 @@ describe("P0-A Radius SDK routing and lifecycle", () => {
     await harness.extension.shutdown("test");
   });
 
+  it.each([
+    {
+      label: "local idle",
+      isRemote: false,
+      hasActiveWork: false,
+      shortened: true
+    },
+    {
+      label: "local background work",
+      isRemote: false,
+      hasActiveWork: true,
+      shortened: false
+    },
+    { label: "remote", isRemote: true, hasActiveWork: false, shortened: false }
+  ])(
+    "uses SDK RPC activity for $label handoffs without duplicate delivery",
+    async ({ isRemote, hasActiveWork, shortened }) => {
+      const harness = await createRuntimeSdkHarness({
+        workspaceTreeByRepoBranch: {
+          "acme/widgets@main": ["Dockerfile", "src/index.ts"]
+        }
+      });
+      harness.session.rpc.metadata = {
+        snapshot: vi.fn(async () => ({ isRemote })),
+        activity: vi.fn(async () => ({ hasActiveWork, abortable: false }))
+      };
+      try {
+        const handoff = harness.capturedHostCallbacks.appBicepHandoff;
+        if (!handoff)
+          throw new Error("runtime registered no app-model handoff");
+        const request = {
+          repo: "acme/widgets",
+          branches: ["main"],
+          page: "graph"
+        };
+        await handoff(request);
+        await handoff(request);
+        expect(harness.session.send).toHaveBeenCalledOnce();
+        const waits = vi.mocked(harness.deps.clock.wait).mock.calls.length;
+        if (shortened) expect(waits).toBeLessThan(15);
+        else expect(waits).toBe(15);
+        expect(harness.session.rpc.metadata.snapshot).toHaveBeenCalledOnce();
+        if (isRemote) {
+          expect(harness.session.rpc.metadata.activity).not.toHaveBeenCalled();
+        } else {
+          expect(harness.session.rpc.metadata.activity).toHaveBeenCalledOnce();
+        }
+      } finally {
+        await harness.extension.shutdown("test");
+      }
+    }
+  );
+
+  it("reports SDK activity failure and preserves the original handoff grace", async () => {
+    const harness = await createRuntimeSdkHarness({
+      workspaceTreeByRepoBranch: {
+        "acme/widgets@main": ["Dockerfile"]
+      }
+    });
+    harness.session.rpc.metadata = {
+      snapshot: async () => ({ isRemote: false }),
+      activity: async () => {
+        throw new Error("activity RPC unavailable");
+      }
+    };
+    try {
+      const handoff = harness.capturedHostCallbacks.appBicepHandoff;
+      if (!handoff) throw new Error("runtime registered no app-model handoff");
+      await handoff({
+        repo: "acme/widgets",
+        branches: ["main"],
+        page: "graph"
+      });
+      expect(harness.session.send).toHaveBeenCalledOnce();
+      expect(harness.deps.clock.wait).toHaveBeenCalledTimes(15);
+      expect(harness.session.log).toHaveBeenCalledWith(
+        expect.stringContaining("activity RPC unavailable")
+      );
+    } finally {
+      await harness.extension.shutdown("test");
+    }
+  });
+
   it("deduplicates missing-model delivery across canvas states without rediscovering the workspace on every poll", async () => {
     const harness = await createRuntimeSdkHarness({
       workspaceTreeByRepoBranch: {

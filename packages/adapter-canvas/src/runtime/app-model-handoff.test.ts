@@ -117,6 +117,7 @@ function harness(
     resolveStatus,
     evaluateSource,
     modelingInFlight,
+    sessionIdle: async () => false,
     // Resolves immediately: the grace window's duration is expressed in the
     // recorded waits, so no test has to spend real time on it.
     wait: async (ms: number) => {
@@ -229,6 +230,117 @@ describe("appModelHandoffKey", () => {
 });
 
 describe("createAppModelHandoff", () => {
+  it("shortens the grace only for a verified idle session and still checks model ownership", async () => {
+    const { handOff, sent, waits, modelingInFlight, resolveStatus } = harness({
+      statuses: { feat: modelStatus("a/b", "feat", { status: "missing" }) },
+      sessionIdle: async () => true
+    });
+    await handOff({ repo: "a/b", branches: ["feat"], page: "graph" });
+    expect(sent).toHaveLength(1);
+    expect(waits).toHaveLength(0);
+    expect(resolveStatus).toHaveBeenCalledTimes(2);
+    expect(modelingInFlight).toHaveBeenCalledTimes(2);
+  });
+
+  it("retains the full grace and reports failed inactivity probes", async () => {
+    const { handOff, sent, waits, logged } = harness({
+      statuses: { feat: modelStatus("a/b", "feat", { status: "missing" }) },
+      sessionIdle: async () => {
+        throw new Error("metadata offline");
+      }
+    });
+    await handOff({ repo: "a/b", branches: ["feat"], page: "graph" });
+    expect(sent).toHaveLength(1);
+    expect(waits).toHaveLength(
+      MODELING_GRACE_WINDOW_MS / MODELING_GRACE_POLL_MS
+    );
+    expect(logged).toEqual([expect.stringContaining("metadata offline")]);
+  });
+
+  it("deduplicates concurrent idle-path handoffs across canvas states", async () => {
+    const { handOff, sent } = harness({
+      statuses: { feat: modelStatus("a/b", "feat", { status: "missing" }) },
+      sessionIdle: async () => true
+    });
+    await Promise.all([
+      handOff({ repo: "a/b", branches: ["feat"], page: "graph", state: {} }),
+      handOff({ repo: "a/b", branches: ["feat"], page: "graph", state: {} })
+    ]);
+    expect(sent).toHaveLength(1);
+  });
+
+  it("does not extend the grace for a stalled probe or deliver again on its late reply", async () => {
+    let resolveProbe: ((idle: boolean) => void) | undefined;
+    const probe = new Promise<boolean>((resolve) => {
+      resolveProbe = resolve;
+    });
+    const { handOff, sent, waits } = harness({
+      statuses: { feat: modelStatus("a/b", "feat", { status: "missing" }) },
+      sessionIdle: () => probe
+    });
+    await handOff({ repo: "a/b", branches: ["feat"], page: "graph" });
+    expect(sent).toHaveLength(1);
+    expect(waits).toHaveLength(
+      MODELING_GRACE_WINDOW_MS / MODELING_GRACE_POLL_MS
+    );
+    if (!resolveProbe) throw new Error("probe resolver not initialized");
+    resolveProbe(true);
+    await probe;
+    expect(sent).toHaveLength(1);
+  });
+
+  it("does not send when modeling starts during the idle-path freshness recheck", async () => {
+    const { handOff, sent } = harness({
+      statuses: { feat: modelStatus("a/b", "feat", { status: "missing" }) },
+      sessionIdle: async () => true,
+      modelingInFlight: vi
+        .fn()
+        .mockResolvedValueOnce(false)
+        .mockResolvedValue(true)
+    });
+    await handOff({ repo: "a/b", branches: ["feat"], page: "graph" });
+    expect(sent).toHaveLength(0);
+  });
+
+  it("does not send when an idle-path freshness recheck finds a published model", async () => {
+    const { handOff, sent } = harness({
+      sessionIdle: async () => true,
+      resolveStatus: vi
+        .fn()
+        .mockResolvedValueOnce(
+          modelStatus("a/b", "feat", { status: "missing" })
+        )
+        .mockResolvedValue(modelStatus("a/b", "feat"))
+    });
+    await handOff({ repo: "a/b", branches: ["feat"], page: "graph" });
+    expect(sent).toHaveLength(0);
+  });
+
+  it("releases the idle-path claim if the final modeling probe fails", async () => {
+    const modelingInFlight = vi
+      .fn()
+      .mockResolvedValueOnce(false)
+      .mockRejectedValueOnce(new Error("modeling probe unavailable"))
+      .mockResolvedValue(false);
+    const { handOff, sent } = harness({
+      sessionIdle: async () => true,
+      statuses: { feat: modelStatus("a/b", "feat", { status: "missing" }) },
+      modelingInFlight
+    });
+    const request = {
+      repo: "a/b",
+      branches: ["feat"],
+      page: "graph",
+      state: {}
+    };
+    await expect(handOff(request)).rejects.toThrow(
+      "modeling probe unavailable"
+    );
+    expect(sent).toHaveLength(0);
+    await handOff(request);
+    expect(sent).toHaveLength(1);
+  });
+
   it("reads against the live workspace context when no panel state is supplied", async () => {
     const { handOff, resolveContext, resolveStatus, sent } = harness({
       statuses: { feat: modelStatus("a/b", "feat", { status: "missing" }) }
@@ -332,7 +444,7 @@ describe("createAppModelHandoff", () => {
     expect(sent).toHaveLength(1);
     const polls = MODELING_GRACE_WINDOW_MS / MODELING_GRACE_POLL_MS;
     expect(waits).toHaveLength(polls);
-    expect(modelingInFlight).toHaveBeenCalledTimes(polls + 1);
+    expect(modelingInFlight).toHaveBeenCalledTimes(polls + 2);
     expect(modelingInFlight).toHaveBeenLastCalledWith(
       "a/b",
       ["feat"],

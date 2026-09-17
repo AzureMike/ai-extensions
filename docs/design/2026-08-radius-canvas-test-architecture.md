@@ -111,6 +111,8 @@ At the design baseline, most behavior was concentrated in `extension.ts`, `serve
 
 Phase 1 implemented this boundary. Tests can now build the real runtime with a fake SDK session while artifact checks still prove production registration.
 
+Missing-model handoffs normally wait up to 15 seconds for an agent that opened the graph to start modeling. The runtime can shorten that grace only when SDK RPC metadata confirms a local session with neither active work (including background tasks) nor an abortable operation. Unsupported, remote, busy, or unreadable session metadata retains the original grace; metadata failures are reported, and a stalled probe cannot extend the window. Model freshness, modeling activity, and the extension-scoped handoff claim are rechecked before delivery, so this optimization does not replace duplicate-run protection.
+
 ### Server boundary
 
 `src/server/` contains an instance-scoped server container, request parsing and dispatch, one route table, eight API ownership families, page routing, and services for multi-stage workflows. State and caches have an explicit scope. External behavior is supplied through narrow typed interfaces; missing behavior fails during construction rather than returning a success-shaped default.
