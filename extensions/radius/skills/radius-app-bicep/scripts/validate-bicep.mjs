@@ -1058,14 +1058,13 @@ function collectStringLeaves(value, pathParts, leaves) {
 
 function resourceAliases(template, parameterValues) {
   const aliases = new Set();
-  for (const [symbol, resource] of Object.entries(template.resources ?? {})) {
+  for (const resource of Object.values(template.resources ?? {})) {
     if (
       typeof resource?.type !== "string" ||
       !resource.type.startsWith("Radius.")
     ) {
       continue;
     }
-    aliases.add(symbol.toLowerCase());
     const name = resolveTemplateString(
       resource.name,
       template,

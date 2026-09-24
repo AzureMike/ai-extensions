@@ -1386,6 +1386,28 @@ test("accepts a literal cluster-local URI backed by a named Radius resource", ()
   assert.equal(result.stderr, "");
 });
 
+test("does not treat a resource symbol as its deployed hostname", () => {
+  const directory = temporaryDirectory();
+  const compiledOutput = template({
+    redis: {
+      ...radiusResource("Radius.Data/redisCaches@2025-08-01-preview", {}),
+      name: "cache",
+    },
+    product: namedContainer("product", {
+      REDIS_URL: { value: "redis://redis:6379/" },
+    }),
+  });
+
+  const result = runChecker(
+    directory,
+    fakeBicep(directory, sarif([]), 0, compiledOutput),
+  );
+
+  assert.equal(result.status, 1);
+  assert.match(result.stderr, /unmodeled-runtime-peer/u);
+  assert.match(result.stderr, /literal URI host "redis"/u);
+});
+
 test("accepts a literal URI backed by a container service alias", () => {
   const directory = temporaryDirectory();
   const compiledOutput = template({

@@ -624,6 +624,9 @@ describe("P0-C built Radius extension artifact", () => {
     expect(skillGuidance).toContain(
       "[runtime-contract.md](references/runtime-contract.md)"
     );
+    expect(skillGuidance).toContain("`resources[].propertySchema`");
+    expect(skillGuidance).toContain("`schemaFormat`");
+    expect(skillGuidance).not.toContain("`resources[].schema`");
     expect(skillGuidance).toContain(
       "do not preserve the manifest's backing-service image by falling back to a generic container"
     );
